@@ -2,12 +2,10 @@ import sys
 
 if __name__ == "__main__":
     # test
-    if len(sys.argv) != 2:
-        print("Usage: python builder.py <number>")
+    if len(sys.argv) >= 2:
+        command = sys.argv[1]
+        print(command)
         sys.exit(1)
-    try:
-        number = int(sys.argv[1])
-    except ValueError:
-        print("Please provide a valid integer.")
+    else:
+        print("Please input a command.")
         sys.exit(1)
-    print(number * 2)
