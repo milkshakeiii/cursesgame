@@ -6,3 +6,7 @@ class HeroBackground:
         self.description = description
     def __str__(self):
         return f"Hero Background: {self.name} - {self.description}"
+
+backgrounds = [
+    HeroBackground("Adventurer", {"adventurer"}, [], "An adventurer with a thirst for exploration."),
+]

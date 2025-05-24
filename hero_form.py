@@ -6,3 +6,7 @@ class HeroForm:
         self.description = description
     def __str__(self):
         return f"Hero Form: {self.name} - {self.description}"
+
+forms = [
+    HeroForm("Human", {"human"}, [], "A native species of highly encephalized ape."),
+]
