@@ -21,7 +21,17 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="battler.py" />
     <Compile Include="builder.py" />
+    <Compile Include="condition.py" />
+    <Compile Include="effect.py" />
+    <Compile Include="hero.py" />
+    <Compile Include="hero_build.py" />
+    <Compile Include="hero_module.py" />
+    <Compile Include="hero_background.py" />
+    <Compile Include="hero_form.py" />
+    <Compile Include="hero_class.py" />
+    <Compile Include="prerequisite.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
