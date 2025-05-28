@@ -16,11 +16,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-# Uncomment next two lines to enable admin:
-#from django.contrib import admin
-#from django.urls import path
+from django.urls import include, re_path
+import djangogameapp.views
 
+# Django processes URL patterns in the order they appear in the array
 urlpatterns = [
-    # Uncomment the next line to enable the admin:
-    #path('admin/', admin.site.urls)
+    re_path(r'^$', djangogameapp.views.index, name='index'),
+    re_path(r'^home$', djangogameapp.views.index, name='home')
 ]
