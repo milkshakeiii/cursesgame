@@ -33,6 +33,7 @@
     <Compile Include="djangogameapp\admin.py" />
     <Compile Include="djangogameapp\apps.py" />
     <Compile Include="djangogameapp\migrations\__init__.py" />
+    <Compile Include="djangogameapp\serializers.py" />
     <Compile Include="djangogameapp\models.py" />
     <Compile Include="djangogameapp\tests.py" />
     <Compile Include="djangogameapp\views.py" />

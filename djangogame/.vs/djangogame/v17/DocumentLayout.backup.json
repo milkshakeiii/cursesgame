@@ -3,12 +3,28 @@
   "WorkspaceRootPath": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\manage.py||{8B382828-6202-11D1-8870-0000F87579D2}",
-      "RelativeMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|solutionrelative:manage.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+      "AbsoluteMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogameapp\\views.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|solutionrelative:djangogameapp\\views.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogameapp\\serializers.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|solutionrelative:djangogameapp\\serializers.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogameapp\\models.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|solutionrelative:djangogameapp\\models.py||{8B382828-6202-11D1-8870-0000F87579D2}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogame\\settings.py||{8B382828-6202-11D1-8870-0000F87579D2}",
       "RelativeMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|solutionrelative:djangogame\\settings.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogame\\urls.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|solutionrelative:djangogame\\urls.py||{8B382828-6202-11D1-8870-0000F87579D2}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\manage.py||{8B382828-6202-11D1-8870-0000F87579D2}",
+      "RelativeMoniker": "D:0:0:{4BA30FA1-5794-42AF-8ACE-638BFB7EBE03}|djangogame.pyproj|solutionrelative:manage.py||{8B382828-6202-11D1-8870-0000F87579D2}"
     }
   ],
   "DocumentGroupContainers": [
@@ -18,11 +34,63 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 3,
           "Children": [
             {
               "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "serializers.py",
+              "DocumentMoniker": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogameapp\\serializers.py",
+              "RelativeDocumentMoniker": "djangogameapp\\serializers.py",
+              "ToolTip": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogameapp\\serializers.py",
+              "RelativeToolTip": "djangogameapp\\serializers.py",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-05-29T20:15:10.081Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "models.py",
+              "DocumentMoniker": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogameapp\\models.py",
+              "RelativeDocumentMoniker": "djangogameapp\\models.py",
+              "ToolTip": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogameapp\\models.py",
+              "RelativeToolTip": "djangogameapp\\models.py",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAcAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-05-29T16:50:18.769Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "urls.py",
+              "DocumentMoniker": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogame\\urls.py",
+              "RelativeDocumentMoniker": "djangogame\\urls.py",
+              "ToolTip": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogame\\urls.py",
+              "RelativeToolTip": "djangogame\\urls.py",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABkAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-05-28T20:56:27.774Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "views.py",
+              "DocumentMoniker": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogameapp\\views.py",
+              "RelativeDocumentMoniker": "djangogameapp\\views.py",
+              "ToolTip": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogameapp\\views.py",
+              "RelativeToolTip": "djangogameapp\\views.py",
+              "ViewState": "AgIAAAMAAAAAAAAAAAAAACQAAAA6AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-05-28T20:55:36.232Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
               "Title": "manage.py",
               "DocumentMoniker": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\manage.py",
               "RelativeDocumentMoniker": "manage.py",
@@ -35,13 +103,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 3,
               "Title": "settings.py",
               "DocumentMoniker": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogame\\settings.py",
               "RelativeDocumentMoniker": "djangogame\\settings.py",
               "ToolTip": "C:\\Users\\User\\Documents\\GitHub\\cursesgame\\djangogame\\djangogame\\settings.py",
               "RelativeToolTip": "djangogame\\settings.py",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAwAAAAAAAAAAAAAACQAAAAeAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2025-05-28T18:09:33.524Z",
               "EditorCaption": ""
