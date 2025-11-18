@@ -84,6 +84,22 @@ class Game:
             tcod.event.KeySym.KP_3: (1, 1),    # downright
         }
     
+    def _get_tile_dimensions(self, font_size: int) -> tuple[int, int]:
+        """Calculate tile dimensions for the VT323 font.
+        
+        VT323 is a condensed monospace font that looks best with a 
+        width-to-height ratio of approximately 5:8 to avoid extra spacing.
+        
+        Args:
+            font_size: The base font size
+            
+        Returns:
+            A tuple of (tile_width, tile_height)
+        """
+        tile_height = font_size
+        tile_width = int(font_size * 0.625)  # 5:8 ratio
+        return tile_width, tile_height
+    
     def toggle_fullscreen(self) -> None:
         """Toggle between fullscreen and windowed mode."""
         if not self.context:
@@ -103,8 +119,9 @@ class Game:
         new_size = min(self.font_size + FONT_SIZE_INCREMENT, MAX_FONT_SIZE)
         if new_size != self.font_size:
             self.font_size = new_size
+            tile_width, tile_height = self._get_tile_dimensions(self.font_size)
             tileset = tcod.tileset.load_truetype_font(
-                self.font_path, self.font_size, self.font_size
+                self.font_path, tile_width, tile_height
             )
             self.context.change_tileset(tileset)
     
@@ -116,8 +133,9 @@ class Game:
         new_size = max(self.font_size - FONT_SIZE_INCREMENT, MIN_FONT_SIZE)
         if new_size != self.font_size:
             self.font_size = new_size
+            tile_width, tile_height = self._get_tile_dimensions(self.font_size)
             tileset = tcod.tileset.load_truetype_font(
-                self.font_path, self.font_size, self.font_size
+                self.font_path, tile_width, tile_height
             )
             self.context.change_tileset(tileset)
     
@@ -184,8 +202,13 @@ def main():
     """Main entry point for the game."""
     THIS_DIR = Path(__file__, "..")  # Directory of this script file
     FONT = THIS_DIR / "VT323-Regular.ttf"
+    
+    # Calculate tile dimensions for VT323 font at default size
+    # VT323 is condensed, so we use 5:8 width-to-height ratio
+    tile_width = int(DEFAULT_FONT_SIZE * 0.625)
+    tile_height = DEFAULT_FONT_SIZE
     tileset = tcod.tileset.load_truetype_font(
-        FONT, DEFAULT_FONT_SIZE, DEFAULT_FONT_SIZE
+        FONT, tile_width, tile_height
     )
     
     with tcod.context.new(

@@ -219,7 +219,10 @@ class TestGame:
             game.increase_font_size()
             
             assert game.font_size == initial_size + FONT_SIZE_INCREMENT
-            mock_load.assert_called_once_with(font_path, game.font_size, game.font_size)
+            # VT323 font uses 5:8 width-to-height ratio
+            expected_width = int(game.font_size * 0.625)
+            expected_height = game.font_size
+            mock_load.assert_called_once_with(font_path, expected_width, expected_height)
             mock_context.change_tileset.assert_called_once_with(mock_tileset)
     
     def test_increase_font_size_at_max(self):
@@ -250,7 +253,10 @@ class TestGame:
             game.decrease_font_size()
             
             assert game.font_size == initial_size - FONT_SIZE_INCREMENT
-            mock_load.assert_called_once_with(font_path, game.font_size, game.font_size)
+            # VT323 font uses 5:8 width-to-height ratio
+            expected_width = int(game.font_size * 0.625)
+            expected_height = game.font_size
+            mock_load.assert_called_once_with(font_path, expected_width, expected_height)
             mock_context.change_tileset.assert_called_once_with(mock_tileset)
     
     def test_decrease_font_size_at_min(self):
