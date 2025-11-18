@@ -12,6 +12,7 @@ GRID_HEIGHT = 25
 
 # Font size settings
 DEFAULT_FONT_SIZE = 32
+FONT_ASPECT_RATIO = 0.625
 
 
 class Player:
@@ -80,23 +81,7 @@ class Game:
             tcod.event.KeySym.KP_1: (-1, 1),   # downleft
             tcod.event.KeySym.KP_3: (1, 1),    # downright
         }
-    
-    def _get_tile_dimensions(self, font_size: int) -> tuple[int, int]:
-        """Calculate tile dimensions for the VT323 font.
-        
-        VT323 is a condensed monospace font that looks best with a 
-        width-to-height ratio of approximately 5:8 to avoid extra spacing.
-        
-        Args:
-            font_size: The base font size
-            
-        Returns:
-            A tuple of (tile_width, tile_height)
-        """
-        tile_height = font_size
-        tile_width = int(font_size * 0.625)  # 5:8 ratio
-        return tile_width, tile_height
-    
+
     def toggle_fullscreen(self) -> None:
         """Toggle between fullscreen and windowed mode."""
         if not self.context:
@@ -163,8 +148,7 @@ def main():
     FONT = THIS_DIR / "VT323-Regular.ttf"
     
     # Calculate tile dimensions for VT323 font at default size
-    # VT323 is condensed, so we use 5:8 width-to-height ratio
-    tile_width = int(DEFAULT_FONT_SIZE * 0.625)
+    tile_width = int(DEFAULT_FONT_SIZE * FONT_ASPECT_RATIO)
     tile_height = DEFAULT_FONT_SIZE
     tileset = tcod.tileset.load_truetype_font(
         FONT, tile_width, tile_height
