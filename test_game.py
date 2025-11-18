@@ -2,7 +2,9 @@
 """Unit tests for the game."""
 
 import pytest
-from game import Player, Game, GRID_WIDTH, GRID_HEIGHT
+from unittest.mock import Mock, MagicMock, patch
+from game import Player, Game, GRID_WIDTH, GRID_HEIGHT, DEFAULT_FONT_SIZE
+import tcod.event
 
 
 class TestPlayer:
@@ -161,3 +163,64 @@ class TestGame:
         """Test that direction map contains all 8 numpad directions."""
         game = Game()
         assert len(game.direction_map) == 8
+    
+    def test_game_initialization_with_context_and_font(self):
+        """Test that a game initializes correctly with context and font path."""
+        mock_context = Mock()
+        font_path = "/path/to/font.ttf"
+        game = Game(context=mock_context, font_path=font_path)
+        assert game.context == mock_context
+        assert game.font_path == font_path
+        assert game.font_size == DEFAULT_FONT_SIZE
+    
+    def test_toggle_fullscreen_without_context(self):
+        """Test that toggle_fullscreen does nothing without context."""
+        game = Game()
+        # Should not raise an exception
+        game.toggle_fullscreen()
+    
+    def test_toggle_fullscreen_to_fullscreen(self):
+        """Test toggling from windowed to fullscreen mode."""
+        mock_context = Mock()
+        mock_window = Mock()
+        mock_window.fullscreen = False
+        mock_context.sdl_window = mock_window
+        
+        game = Game(context=mock_context)
+        game.toggle_fullscreen()
+        
+        # Should set fullscreen to True
+        assert mock_window.fullscreen is True
+    
+    def test_toggle_fullscreen_to_windowed(self):
+        """Test toggling from fullscreen to windowed mode."""
+        mock_context = Mock()
+        mock_window = Mock()
+        mock_window.fullscreen = True
+        mock_context.sdl_window = mock_window
+        
+        game = Game(context=mock_context)
+        game.toggle_fullscreen()
+        
+        # Should set fullscreen to False
+        assert mock_window.fullscreen is False
+    
+    def test_handle_alt_enter_event(self):
+        """Test that Alt+Enter triggers fullscreen toggle."""
+        mock_context = Mock()
+        mock_window = Mock()
+        mock_window.fullscreen = False
+        mock_context.sdl_window = mock_window
+        
+        game = Game(context=mock_context)
+        
+        # Create Alt+Enter event
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.LALT
+        )
+        
+        game.handle_event(event)
+        
+        assert mock_window.fullscreen is True

@@ -1,6 +1,6 @@
 # cursesgame
 
-A simple game using python-tcod where the player moves an @ symbol around an 80x25 grid using the numpad.
+A simple game using python-tcod where the player moves an @ symbol around a 50x25 grid using the numpad.
 
 ## Installation
 
@@ -24,6 +24,9 @@ python game.py
 - **Numpad 9**: Move up-right
 - **Numpad 1**: Move down-left
 - **Numpad 3**: Move down-right
+- **Alt+Enter**: Toggle fullscreen/windowed mode
+- **Ctrl+=**: Increase text size
+- **Ctrl+-**: Decrease text size
 - **ESC**: Quit the game
 
 ## Running Tests
@@ -34,8 +37,9 @@ python -m pytest test_game.py -v
 
 ## Features
 
-- 80x25 ASCII grid
+- 50x25 ASCII grid
 - Player represented by '@' symbol
 - 8-directional movement using numpad
 - Boundary checking prevents moving off the grid
 - Border drawn around the play area
+- Fullscreen toggle and text size adjustment

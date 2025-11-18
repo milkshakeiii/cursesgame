@@ -7,8 +7,12 @@ import tcod
 
 
 # Grid dimensions
-GRID_WIDTH = 80
+GRID_WIDTH = 50
 GRID_HEIGHT = 25
+
+# Font size settings
+DEFAULT_FONT_SIZE = 32
+FONT_ASPECT_RATIO = 0.625
 
 
 class Player:
@@ -51,12 +55,20 @@ class Player:
 class Game:
     """Main game class."""
     
-    def __init__(self):
-        """Initialize the game."""
+    def __init__(self, context=None, font_path=None):
+        """Initialize the game.
+        
+        Args:
+            context: The tcod.context.Context for the game (optional)
+            font_path: Path to the font file (optional)
+        """
         self.width = GRID_WIDTH
         self.height = GRID_HEIGHT
         self.player = Player(self.width // 2, self.height // 2)
         self.running = True
+        self.context = context
+        self.font_path = font_path
+        self.font_size = DEFAULT_FONT_SIZE
         
         # Numpad direction mappings: key -> (dx, dy)
         self.direction_map = {
@@ -69,6 +81,17 @@ class Game:
             tcod.event.KeySym.KP_1: (-1, 1),   # downleft
             tcod.event.KeySym.KP_3: (1, 1),    # downright
         }
+
+    def toggle_fullscreen(self) -> None:
+        """Toggle between fullscreen and windowed mode."""
+        if not self.context:
+            return
+        
+        window = self.context.sdl_window
+        if not window:
+            return
+        
+        window.fullscreen = not window.fullscreen
     
     def handle_event(self, event: tcod.event.Event) -> None:
         """Handle an input event.
@@ -79,7 +102,12 @@ class Game:
         if isinstance(event, tcod.event.Quit):
             self.running = False
         elif isinstance(event, tcod.event.KeyDown):
-            if event.sym == tcod.event.KeySym.ESCAPE:
+            # Check for Alt+Enter (fullscreen toggle)
+            if event.sym == tcod.event.KeySym.RETURN and (
+                event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
+            ):
+                self.toggle_fullscreen()
+            elif event.sym == tcod.event.KeySym.ESCAPE:
                 self.running = False
             elif event.sym in self.direction_map:
                 dx, dy = self.direction_map[event.sym]
@@ -107,19 +135,20 @@ class Game:
         console.print(0, self.height - 1, '+')
         console.print(self.width - 1, self.height - 1, '+')
         
-        # Draw player
-        console.print(self.player.x, self.player.y, self.player.symbol)
-        
         # Draw instructions
         console.print(2, self.height - 2, "Use numpad to move. ESC to quit.")
+        
+        # Draw player
+        console.print(self.player.x, self.player.y, self.player.symbol)
 
 
 def main():
     """Main entry point for the game."""
     THIS_DIR = Path(__file__, "..")  # Directory of this script file
-    FONT = THIS_DIR / "VT323-Regular.ttf"
-    tileset = tcod.tileset.load_truetype_font(
-        FONT, 16, 16
+    FONT = THIS_DIR / "5x8.bdf"
+    
+    tileset = tcod.tileset.load_bdf(
+        FONT
     )
     
     with tcod.context.new(
@@ -130,12 +159,12 @@ def main():
         vsync=True,
     ) as context:
         console = tcod.console.Console(GRID_WIDTH, GRID_HEIGHT, order="F")
-        game = Game()
+        game = Game(context=context, font_path=FONT)
         
         while game.running:
             console.clear()
             game.render(console)
-            context.present(console)
+            context.present(console, keep_aspect=True, integer_scaling=False)
             
             for event in tcod.event.wait():
                 context.convert_event(event)
