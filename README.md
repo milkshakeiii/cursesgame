@@ -24,6 +24,9 @@ python game.py
 - **Numpad 9**: Move up-right
 - **Numpad 1**: Move down-left
 - **Numpad 3**: Move down-right
+- **Alt+Enter**: Toggle fullscreen/windowed mode
+- **Ctrl+=**: Increase text size
+- **Ctrl+-**: Decrease text size
 - **ESC**: Quit the game
 
 ## Running Tests

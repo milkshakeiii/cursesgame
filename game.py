@@ -10,6 +10,12 @@ import tcod
 GRID_WIDTH = 80
 GRID_HEIGHT = 25
 
+# Font size settings
+DEFAULT_FONT_SIZE = 16
+MIN_FONT_SIZE = 8
+MAX_FONT_SIZE = 32
+FONT_SIZE_INCREMENT = 2
+
 
 class Player:
     """Represents the player in the game."""
@@ -51,12 +57,20 @@ class Player:
 class Game:
     """Main game class."""
     
-    def __init__(self):
-        """Initialize the game."""
+    def __init__(self, context=None, font_path=None):
+        """Initialize the game.
+        
+        Args:
+            context: The tcod.context.Context for the game (optional)
+            font_path: Path to the font file (optional)
+        """
         self.width = GRID_WIDTH
         self.height = GRID_HEIGHT
         self.player = Player(self.width // 2, self.height // 2)
         self.running = True
+        self.context = context
+        self.font_path = font_path
+        self.font_size = DEFAULT_FONT_SIZE
         
         # Numpad direction mappings: key -> (dx, dy)
         self.direction_map = {
@@ -70,6 +84,43 @@ class Game:
             tcod.event.KeySym.KP_3: (1, 1),    # downright
         }
     
+    def toggle_fullscreen(self) -> None:
+        """Toggle between fullscreen and windowed mode."""
+        if not self.context:
+            return
+        
+        window = self.context.sdl_window
+        if not window:
+            return
+        
+        window.fullscreen = not window.fullscreen
+    
+    def increase_font_size(self) -> None:
+        """Increase the font size."""
+        if not self.context or not self.font_path:
+            return
+        
+        new_size = min(self.font_size + FONT_SIZE_INCREMENT, MAX_FONT_SIZE)
+        if new_size != self.font_size:
+            self.font_size = new_size
+            tileset = tcod.tileset.load_truetype_font(
+                self.font_path, self.font_size, self.font_size
+            )
+            self.context.change_tileset(tileset)
+    
+    def decrease_font_size(self) -> None:
+        """Decrease the font size."""
+        if not self.context or not self.font_path:
+            return
+        
+        new_size = max(self.font_size - FONT_SIZE_INCREMENT, MIN_FONT_SIZE)
+        if new_size != self.font_size:
+            self.font_size = new_size
+            tileset = tcod.tileset.load_truetype_font(
+                self.font_path, self.font_size, self.font_size
+            )
+            self.context.change_tileset(tileset)
+    
     def handle_event(self, event: tcod.event.Event) -> None:
         """Handle an input event.
         
@@ -79,7 +130,22 @@ class Game:
         if isinstance(event, tcod.event.Quit):
             self.running = False
         elif isinstance(event, tcod.event.KeyDown):
-            if event.sym == tcod.event.KeySym.ESCAPE:
+            # Check for Alt+Enter (fullscreen toggle)
+            if event.sym == tcod.event.KeySym.RETURN and (
+                event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
+            ):
+                self.toggle_fullscreen()
+            # Check for Ctrl+= (increase font size)
+            elif event.sym == tcod.event.KeySym.EQUALS and (
+                event.mod & tcod.event.Modifier.LCTRL or event.mod & tcod.event.Modifier.RCTRL
+            ):
+                self.increase_font_size()
+            # Check for Ctrl+- (decrease font size)
+            elif event.sym == tcod.event.KeySym.MINUS and (
+                event.mod & tcod.event.Modifier.LCTRL or event.mod & tcod.event.Modifier.RCTRL
+            ):
+                self.decrease_font_size()
+            elif event.sym == tcod.event.KeySym.ESCAPE:
                 self.running = False
             elif event.sym in self.direction_map:
                 dx, dy = self.direction_map[event.sym]
@@ -119,7 +185,7 @@ def main():
     THIS_DIR = Path(__file__, "..")  # Directory of this script file
     FONT = THIS_DIR / "VT323-Regular.ttf"
     tileset = tcod.tileset.load_truetype_font(
-        FONT, 16, 16
+        FONT, DEFAULT_FONT_SIZE, DEFAULT_FONT_SIZE
     )
     
     with tcod.context.new(
@@ -130,7 +196,7 @@ def main():
         vsync=True,
     ) as context:
         console = tcod.console.Console(GRID_WIDTH, GRID_HEIGHT, order="F")
-        game = Game()
+        game = Game(context=context, font_path=FONT)
         
         while game.running:
             console.clear()
