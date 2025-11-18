@@ -145,13 +145,10 @@ class Game:
 def main():
     """Main entry point for the game."""
     THIS_DIR = Path(__file__, "..")  # Directory of this script file
-    FONT = THIS_DIR / "VT323-Regular.ttf"
+    FONT = THIS_DIR / "5x8.bdf"
     
-    # Calculate tile dimensions for VT323 font at default size
-    tile_width = int(DEFAULT_FONT_SIZE * FONT_ASPECT_RATIO)
-    tile_height = DEFAULT_FONT_SIZE
-    tileset = tcod.tileset.load_truetype_font(
-        FONT, tile_width, tile_height
+    tileset = tcod.tileset.load_bdf(
+        FONT
     )
     
     with tcod.context.new(
