@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """A simple game using python-tcod where the player moves an @ symbol."""
 
+from pathlib import Path
+
 import tcod
 
 
@@ -114,10 +116,10 @@ class Game:
 
 def main():
     """Main entry point for the game."""
-    tileset = tcod.tileset.load_tilesheet(
-        tcod.tileset.FONT_TERMINAL_10x10,
-        32, 8,
-        tcod.tileset.CHARMAP_TCOD
+    THIS_DIR = Path(__file__, "..")  # Directory of this script file
+    FONT = THIS_DIR / "VT323-Regular.ttf"
+    tileset = tcod.tileset.load_truetype_font(
+        FONT, 16, 16
     )
     
     with tcod.context.new(
