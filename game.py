@@ -150,11 +150,11 @@ class Game:
         console.print(0, self.height - 1, '+')
         console.print(self.width - 1, self.height - 1, '+')
         
-        # Draw player
-        console.print(self.player.x, self.player.y, self.player.symbol)
-        
         # Draw instructions
         console.print(2, self.height - 2, "Use numpad to move. ESC to quit.")
+        
+        # Draw player
+        console.print(self.player.x, self.player.y, self.player.symbol)
 
 
 def main():
