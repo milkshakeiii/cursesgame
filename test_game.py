@@ -3,7 +3,7 @@
 
 import pytest
 from unittest.mock import Mock, MagicMock, patch
-from game import Player, Game, GRID_WIDTH, GRID_HEIGHT, DEFAULT_FONT_SIZE, MIN_FONT_SIZE, MAX_FONT_SIZE, FONT_SIZE_INCREMENT
+from game import Player, Game, GRID_WIDTH, GRID_HEIGHT, DEFAULT_FONT_SIZE
 import tcod.event
 
 
@@ -205,74 +205,6 @@ class TestGame:
         # Should set fullscreen to False
         assert mock_window.fullscreen is False
     
-    def test_increase_font_size(self):
-        """Test increasing font size."""
-        mock_context = Mock()
-        font_path = "/path/to/font.ttf"
-        game = Game(context=mock_context, font_path=font_path)
-        
-        with patch('tcod.tileset.load_truetype_font') as mock_load:
-            mock_tileset = Mock()
-            mock_load.return_value = mock_tileset
-            
-            initial_size = game.font_size
-            game.increase_font_size()
-            
-            assert game.font_size == initial_size + FONT_SIZE_INCREMENT
-            # VT323 font uses 5:8 width-to-height ratio
-            expected_width = int(game.font_size * 0.625)
-            expected_height = game.font_size
-            mock_load.assert_called_once_with(font_path, expected_width, expected_height)
-            mock_context.change_tileset.assert_called_once_with(mock_tileset)
-    
-    def test_increase_font_size_at_max(self):
-        """Test that font size doesn't increase beyond maximum."""
-        mock_context = Mock()
-        font_path = "/path/to/font.ttf"
-        game = Game(context=mock_context, font_path=font_path)
-        game.font_size = MAX_FONT_SIZE
-        
-        with patch('tcod.tileset.load_truetype_font') as mock_load:
-            game.increase_font_size()
-            
-            assert game.font_size == MAX_FONT_SIZE
-            mock_load.assert_not_called()
-            mock_context.change_tileset.assert_not_called()
-    
-    def test_decrease_font_size(self):
-        """Test decreasing font size."""
-        mock_context = Mock()
-        font_path = "/path/to/font.ttf"
-        game = Game(context=mock_context, font_path=font_path)
-        
-        with patch('tcod.tileset.load_truetype_font') as mock_load:
-            mock_tileset = Mock()
-            mock_load.return_value = mock_tileset
-            
-            initial_size = game.font_size
-            game.decrease_font_size()
-            
-            assert game.font_size == initial_size - FONT_SIZE_INCREMENT
-            # VT323 font uses 5:8 width-to-height ratio
-            expected_width = int(game.font_size * 0.625)
-            expected_height = game.font_size
-            mock_load.assert_called_once_with(font_path, expected_width, expected_height)
-            mock_context.change_tileset.assert_called_once_with(mock_tileset)
-    
-    def test_decrease_font_size_at_min(self):
-        """Test that font size doesn't decrease beyond minimum."""
-        mock_context = Mock()
-        font_path = "/path/to/font.ttf"
-        game = Game(context=mock_context, font_path=font_path)
-        game.font_size = MIN_FONT_SIZE
-        
-        with patch('tcod.tileset.load_truetype_font') as mock_load:
-            game.decrease_font_size()
-            
-            assert game.font_size == MIN_FONT_SIZE
-            mock_load.assert_not_called()
-            mock_context.change_tileset.assert_not_called()
-    
     def test_handle_alt_enter_event(self):
         """Test that Alt+Enter triggers fullscreen toggle."""
         mock_context = Mock()
@@ -292,49 +224,3 @@ class TestGame:
         game.handle_event(event)
         
         assert mock_window.fullscreen is True
-    
-    def test_handle_ctrl_equals_event(self):
-        """Test that Ctrl+= triggers font size increase."""
-        mock_context = Mock()
-        font_path = "/path/to/font.ttf"
-        game = Game(context=mock_context, font_path=font_path)
-        
-        with patch('tcod.tileset.load_truetype_font') as mock_load:
-            mock_tileset = Mock()
-            mock_load.return_value = mock_tileset
-            
-            initial_size = game.font_size
-            
-            # Create Ctrl+= event
-            event = tcod.event.KeyDown(
-                scancode=0,
-                sym=tcod.event.KeySym.EQUALS,
-                mod=tcod.event.Modifier.LCTRL
-            )
-            
-            game.handle_event(event)
-            
-            assert game.font_size == initial_size + FONT_SIZE_INCREMENT
-    
-    def test_handle_ctrl_minus_event(self):
-        """Test that Ctrl+- triggers font size decrease."""
-        mock_context = Mock()
-        font_path = "/path/to/font.ttf"
-        game = Game(context=mock_context, font_path=font_path)
-        
-        with patch('tcod.tileset.load_truetype_font') as mock_load:
-            mock_tileset = Mock()
-            mock_load.return_value = mock_tileset
-            
-            initial_size = game.font_size
-            
-            # Create Ctrl+- event
-            event = tcod.event.KeyDown(
-                scancode=0,
-                sym=tcod.event.KeySym.MINUS,
-                mod=tcod.event.Modifier.LCTRL
-            )
-            
-            game.handle_event(event)
-            
-            assert game.font_size == initial_size - FONT_SIZE_INCREMENT

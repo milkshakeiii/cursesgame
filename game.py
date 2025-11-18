@@ -11,10 +11,7 @@ GRID_WIDTH = 50
 GRID_HEIGHT = 25
 
 # Font size settings
-DEFAULT_FONT_SIZE = 16
-MIN_FONT_SIZE = 8
-MAX_FONT_SIZE = 32
-FONT_SIZE_INCREMENT = 2
+DEFAULT_FONT_SIZE = 32
 
 
 class Player:
@@ -111,34 +108,6 @@ class Game:
         
         window.fullscreen = not window.fullscreen
     
-    def increase_font_size(self) -> None:
-        """Increase the font size."""
-        if not self.context or not self.font_path:
-            return
-        
-        new_size = min(self.font_size + FONT_SIZE_INCREMENT, MAX_FONT_SIZE)
-        if new_size != self.font_size:
-            self.font_size = new_size
-            tile_width, tile_height = self._get_tile_dimensions(self.font_size)
-            tileset = tcod.tileset.load_truetype_font(
-                self.font_path, tile_width, tile_height
-            )
-            self.context.change_tileset(tileset)
-    
-    def decrease_font_size(self) -> None:
-        """Decrease the font size."""
-        if not self.context or not self.font_path:
-            return
-        
-        new_size = max(self.font_size - FONT_SIZE_INCREMENT, MIN_FONT_SIZE)
-        if new_size != self.font_size:
-            self.font_size = new_size
-            tile_width, tile_height = self._get_tile_dimensions(self.font_size)
-            tileset = tcod.tileset.load_truetype_font(
-                self.font_path, tile_width, tile_height
-            )
-            self.context.change_tileset(tileset)
-    
     def handle_event(self, event: tcod.event.Event) -> None:
         """Handle an input event.
         
@@ -153,16 +122,6 @@ class Game:
                 event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
             ):
                 self.toggle_fullscreen()
-            # Check for Ctrl+= (increase font size)
-            elif event.sym == tcod.event.KeySym.EQUALS and (
-                event.mod & tcod.event.Modifier.LCTRL or event.mod & tcod.event.Modifier.RCTRL
-            ):
-                self.increase_font_size()
-            # Check for Ctrl+- (decrease font size)
-            elif event.sym == tcod.event.KeySym.MINUS and (
-                event.mod & tcod.event.Modifier.LCTRL or event.mod & tcod.event.Modifier.RCTRL
-            ):
-                self.decrease_font_size()
             elif event.sym == tcod.event.KeySym.ESCAPE:
                 self.running = False
             elif event.sym in self.direction_map:
@@ -224,7 +183,7 @@ def main():
         while game.running:
             console.clear()
             game.render(console)
-            context.present(console, keep_aspect=True, integer_scaling=True)
+            context.present(console, keep_aspect=True, integer_scaling=False)
             
             for event in tcod.event.wait():
                 context.convert_event(event)
