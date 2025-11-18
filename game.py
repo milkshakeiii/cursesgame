@@ -7,7 +7,7 @@ import tcod
 
 
 # Grid dimensions
-GRID_WIDTH = 80
+GRID_WIDTH = 50
 GRID_HEIGHT = 25
 
 # Font size settings
@@ -201,7 +201,7 @@ def main():
         while game.running:
             console.clear()
             game.render(console)
-            context.present(console)
+            context.present(console, keep_aspect=True, integer_scaling=True)
             
             for event in tcod.event.wait():
                 context.convert_event(event)
