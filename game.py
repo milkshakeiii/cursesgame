@@ -138,8 +138,8 @@ class Game:
         # Draw instructions
         console.print(2, self.height - 2, "Use numpad to move. ESC to quit.")
         
-        # Draw player
-        console.print(self.player.x, self.player.y, self.player.symbol)
+        # Draw player symbol, make the color green
+        console.print(self.player.x, self.player.y, self.player.symbol, fg=(0, 255, 0))
 
 
 def main():
