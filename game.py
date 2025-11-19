@@ -3,6 +3,8 @@
 
 from pathlib import Path
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Optional
 
 import tcod
 
@@ -40,41 +42,43 @@ class Screen(ABC):
         pass
 
 
+@dataclass
 class Player:
     """Represents the player in the game."""
+    x: int
+    y: int
+    symbol: str = '@'
+
+
+@dataclass
+class GameState:
+    """Serializable gamestate data."""
+    player: Player
+
+
+def advance_step(gamestate: GameState, action: Optional[tuple[int, int]]) -> GameState:
+    """Advance the game by one step based on the player action.
     
-    def __init__(self, x: int, y: int):
-        """Initialize the player at the given position.
+    Args:
+        gamestate: The current game state
+        action: A tuple of (dx, dy) representing the player's movement, or None for no action
         
-        Args:
-            x: Initial x coordinate
-            y: Initial y coordinate
-        """
-        self.x = x
-        self.y = y
-        self.symbol = '@'
+    Returns:
+        The updated game state
+    """
+    if action is None:
+        return gamestate
     
-    def move(self, dx: int, dy: int, grid_width: int = GRID_WIDTH, grid_height: int = GRID_HEIGHT) -> bool:
-        """Attempt to move the player by the given delta.
-        
-        Args:
-            dx: Change in x coordinate
-            dy: Change in y coordinate
-            grid_width: Width of the game grid
-            grid_height: Height of the game grid
-            
-        Returns:
-            True if the move was successful, False if out of bounds
-        """
-        new_x = self.x + dx
-        new_y = self.y + dy
-        
-        # Check bounds
-        if 0 <= new_x < grid_width and 0 <= new_y < grid_height:
-            self.x = new_x
-            self.y = new_y
-            return True
-        return False
+    dx, dy = action
+    new_x = gamestate.player.x + dx
+    new_y = gamestate.player.y + dy
+    
+    # Check bounds and update position if valid
+    if 0 <= new_x < GRID_WIDTH and 0 <= new_y < GRID_HEIGHT:
+        gamestate.player.x = new_x
+        gamestate.player.y = new_y
+    
+    return gamestate
 
 
 class MapView(Screen):
@@ -113,7 +117,7 @@ class MapView(Screen):
                 game.running = False
             elif event.sym in self.direction_map:
                 dx, dy = self.direction_map[event.sym]
-                game.player.move(dx, dy, game.width, game.height)
+                game.gamestate = advance_step(game.gamestate, (dx, dy))
     
     def render(self, console: tcod.console.Console, game: 'Game') -> None:
         """Render the map view to the console.
@@ -125,24 +129,24 @@ class MapView(Screen):
         console.clear()
         
         # Draw border
-        for x in range(game.width):
+        for x in range(GRID_WIDTH):
             console.print(x, 0, '-')
-            console.print(x, game.height - 1, '-')
-        for y in range(game.height):
+            console.print(x, GRID_HEIGHT - 1, '-')
+        for y in range(GRID_HEIGHT):
             console.print(0, y, '|')
-            console.print(game.width - 1, y, '|')
+            console.print(GRID_WIDTH - 1, y, '|')
         
         # Draw corners
         console.print(0, 0, '+')
-        console.print(game.width - 1, 0, '+')
-        console.print(0, game.height - 1, '+')
-        console.print(game.width - 1, game.height - 1, '+')
+        console.print(GRID_WIDTH - 1, 0, '+')
+        console.print(0, GRID_HEIGHT - 1, '+')
+        console.print(GRID_WIDTH - 1, GRID_HEIGHT - 1, '+')
         
         # Draw instructions
-        console.print(2, game.height - 2, "Use numpad to move. ESC to quit.")
+        console.print(2, GRID_HEIGHT - 2, "Use numpad to move. ESC to quit.")
         
         # Draw player symbol, make the color green
-        console.print(game.player.x, game.player.y, game.player.symbol, fg=(0, 255, 0))
+        console.print(game.gamestate.player.x, game.gamestate.player.y, game.gamestate.player.symbol, fg=(0, 255, 0))
 
 
 class MainMenu(Screen):
@@ -204,14 +208,14 @@ class MainMenu(Screen):
         
         # Draw title
         title = "MAIN MENU"
-        title_x = (game.width - len(title)) // 2
-        console.print(title_x, game.height // 4, title, fg=(255, 255, 0))
+        title_x = (GRID_WIDTH - len(title)) // 2
+        console.print(title_x, GRID_HEIGHT // 4, title, fg=(255, 255, 0))
         
         # Draw menu options
-        start_y = game.height // 2
+        start_y = GRID_HEIGHT // 2
         for i, option in enumerate(self.options):
             y = start_y + i * 2
-            x = (game.width - len(option) - 4) // 2
+            x = (GRID_WIDTH - len(option) - 4) // 2
             
             if i == self.selected_index:
                 # Highlight selected option
@@ -221,8 +225,8 @@ class MainMenu(Screen):
         
         # Draw instructions
         instructions = "Use UP/DOWN or numpad 8/2 to navigate. ENTER to select. ESC to quit."
-        instr_x = (game.width - len(instructions)) // 2
-        console.print(instr_x, game.height - 3, instructions, fg=(150, 150, 150))
+        instr_x = (GRID_WIDTH - len(instructions)) // 2
+        console.print(instr_x, GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
 
 
 class Game:
@@ -235,9 +239,7 @@ class Game:
             context: The tcod.context.Context for the game (optional)
             font_path: Path to the font file (optional)
         """
-        self.width = GRID_WIDTH
-        self.height = GRID_HEIGHT
-        self.player = Player(self.width // 2, self.height // 2)
+        self.gamestate = GameState(player=Player(GRID_WIDTH // 2, GRID_HEIGHT // 2))
         self.running = True
         self.context = context
         self.font_path = font_path
