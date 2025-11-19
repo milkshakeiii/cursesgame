@@ -80,14 +80,8 @@ class Player:
 class MapView(Screen):
     """Screen where the player moves around the map."""
     
-    def __init__(self, player: Player):
-        """Initialize the MapView screen.
-        
-        Args:
-            player: The player object
-        """
-        self.player = player
-        
+    def __init__(self):
+        """Initialize the MapView screen."""
         # Numpad direction mappings: key -> (dx, dy)
         self.direction_map = {
             tcod.event.KeySym.KP_4: (-1, 0),   # left
@@ -119,7 +113,7 @@ class MapView(Screen):
                 game.running = False
             elif event.sym in self.direction_map:
                 dx, dy = self.direction_map[event.sym]
-                self.player.move(dx, dy, game.width, game.height)
+                game.player.move(dx, dy, game.width, game.height)
     
     def render(self, console: tcod.console.Console, game: 'Game') -> None:
         """Render the map view to the console.
@@ -148,7 +142,7 @@ class MapView(Screen):
         console.print(2, game.height - 2, "Use numpad to move. ESC to quit.")
         
         # Draw player symbol, make the color green
-        console.print(self.player.x, self.player.y, self.player.symbol, fg=(0, 255, 0))
+        console.print(game.player.x, game.player.y, game.player.symbol, fg=(0, 255, 0))
 
 
 class MainMenu(Screen):
@@ -250,7 +244,7 @@ class Game:
         self.font_size = DEFAULT_FONT_SIZE
         
         # Initialize screens
-        self.map_view = MapView(self.player)
+        self.map_view = MapView()
         self.main_menu = MainMenu()
         self.current_screen = self.main_menu
 

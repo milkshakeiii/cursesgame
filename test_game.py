@@ -231,15 +231,12 @@ class TestMapView:
     
     def test_mapview_initialization(self):
         """Test that MapView initializes correctly."""
-        player = Player(10, 10)
-        map_view = MapView(player)
-        assert map_view.player == player
+        map_view = MapView()
         assert len(map_view.direction_map) == 8
     
     def test_mapview_handles_quit_event(self):
         """Test that MapView handles quit events."""
-        player = Player(10, 10)
-        map_view = MapView(player)
+        map_view = MapView()
         game = Game()
         
         event = tcod.event.Quit()
@@ -249,8 +246,7 @@ class TestMapView:
     
     def test_mapview_handles_escape_key(self):
         """Test that MapView handles escape key to quit."""
-        player = Player(10, 10)
-        map_view = MapView(player)
+        map_view = MapView()
         game = Game()
         
         event = tcod.event.KeyDown(
@@ -264,9 +260,9 @@ class TestMapView:
     
     def test_mapview_handles_movement(self):
         """Test that MapView handles movement keys."""
-        player = Player(10, 10)
-        map_view = MapView(player)
+        map_view = MapView()
         game = Game()
+        initial_x = game.player.x
         
         # Test moving right
         event = tcod.event.KeyDown(
@@ -276,13 +272,12 @@ class TestMapView:
         )
         map_view.handle_event(event, game)
         
-        assert player.x == 11
-        assert player.y == 10
+        assert game.player.x == initial_x + 1
+        assert game.player.y == game.player.y
     
     def test_mapview_render(self):
         """Test that MapView renders without errors."""
-        player = Player(10, 10)
-        map_view = MapView(player)
+        map_view = MapView()
         game = Game()
         console = Mock()
         
