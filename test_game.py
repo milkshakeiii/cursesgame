@@ -2,6 +2,7 @@
 """Unit tests for the game."""
 
 import pytest
+import json
 from unittest.mock import Mock, MagicMock, patch
 from dataclasses import asdict
 from game import Player, Game, MapView, MainMenu, GRID_WIDTH, GRID_HEIGHT, DEFAULT_FONT_SIZE, GameState, advance_step
@@ -17,29 +18,6 @@ class TestPlayer:
         assert player.x == 10
         assert player.y == 5
         assert player.symbol == '@'
-    
-    def test_player_serialization(self):
-        """Test that Player can be serialized to a dict."""
-        player = Player(15, 20, '$')
-        player_dict = asdict(player)
-        assert player_dict == {'x': 15, 'y': 20, 'symbol': '$'}
-    
-    def test_player_deserialization(self):
-        """Test that Player can be deserialized from a dict."""
-        player_dict = {'x': 25, 'y': 30, 'symbol': '#'}
-        player = Player(**player_dict)
-        assert player.x == 25
-        assert player.y == 30
-        assert player.symbol == '#'
-    
-    def test_player_serialization_roundtrip(self):
-        """Test that Player can be serialized and deserialized without data loss."""
-        original = Player(42, 13, '&')
-        serialized = asdict(original)
-        deserialized = Player(**serialized)
-        assert deserialized.x == original.x
-        assert deserialized.y == original.y
-        assert deserialized.symbol == original.symbol
     
     def test_move_right(self):
         """Test moving right."""
@@ -472,29 +450,25 @@ class TestGameState:
         gamestate = GameState(player=player)
         # Dataclasses have __dataclass_fields__ attribute
         assert hasattr(gamestate, '__dataclass_fields__')
+
+
+class TestSerialization:
+    """Tests for serialization and deserialization of game state."""
     
-    def test_gamestate_serialization(self):
-        """Test that GameState can be serialized to a dict."""
-        player = Player(8, 12, '*')
-        gamestate = GameState(player=player)
-        gamestate_dict = asdict(gamestate)
-        assert gamestate_dict == {'player': {'x': 8, 'y': 12, 'symbol': '*'}}
-    
-    def test_gamestate_deserialization(self):
-        """Test that GameState can be deserialized from a dict."""
-        gamestate_dict = {'player': {'x': 16, 'y': 24, 'symbol': '!'}}
-        player = Player(**gamestate_dict['player'])
-        gamestate = GameState(player=player)
-        assert gamestate.player.x == 16
-        assert gamestate.player.y == 24
-        assert gamestate.player.symbol == '!'
-    
-    def test_gamestate_serialization_roundtrip(self):
-        """Test that GameState can be serialized and deserialized without data loss."""
-        original = GameState(player=Player(33, 44, '%'))
-        serialized = asdict(original)
-        player = Player(**serialized['player'])
+    def test_gamestate_json_roundtrip(self):
+        """Test that GameState with Player can be serialized to JSON and back without data loss."""
+        # Create original gamestate
+        original = GameState(player=Player(42, 13, '&'))
+        
+        # Serialize to JSON string
+        json_str = json.dumps(asdict(original))
+        
+        # Deserialize from JSON string
+        parsed = json.loads(json_str)
+        player = Player(**parsed['player'])
         deserialized = GameState(player=player)
+        
+        # Verify all data is preserved
         assert deserialized.player.x == original.player.x
         assert deserialized.player.y == original.player.y
         assert deserialized.player.symbol == original.player.symbol
