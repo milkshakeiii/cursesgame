@@ -2,8 +2,10 @@
 """Unit tests for the game."""
 
 import pytest
+import json
 from unittest.mock import Mock, MagicMock, patch
-from game import Player, Game, MapView, MainMenu, GRID_WIDTH, GRID_HEIGHT, DEFAULT_FONT_SIZE
+from dataclasses import asdict
+from game import Player, Game, MapView, MainMenu, GRID_WIDTH, GRID_HEIGHT, DEFAULT_FONT_SIZE, GameState, advance_step
 import tcod.event
 
 
@@ -19,131 +21,115 @@ class TestPlayer:
     
     def test_move_right(self):
         """Test moving right."""
-        player = Player(10, 10)
-        result = player.move(1, 0)
-        assert result is True
-        assert player.x == 11
-        assert player.y == 10
+        gamestate = GameState(player=Player(10, 10))
+        gamestate = advance_step(gamestate, (1, 0))
+        assert gamestate.player.x == 11
+        assert gamestate.player.y == 10
     
     def test_move_left(self):
         """Test moving left."""
-        player = Player(10, 10)
-        result = player.move(-1, 0)
-        assert result is True
-        assert player.x == 9
-        assert player.y == 10
+        gamestate = GameState(player=Player(10, 10))
+        gamestate = advance_step(gamestate, (-1, 0))
+        assert gamestate.player.x == 9
+        assert gamestate.player.y == 10
     
     def test_move_up(self):
         """Test moving up."""
-        player = Player(10, 10)
-        result = player.move(0, -1)
-        assert result is True
-        assert player.x == 10
-        assert player.y == 9
+        gamestate = GameState(player=Player(10, 10))
+        gamestate = advance_step(gamestate, (0, -1))
+        assert gamestate.player.x == 10
+        assert gamestate.player.y == 9
     
     def test_move_down(self):
         """Test moving down."""
-        player = Player(10, 10)
-        result = player.move(0, 1)
-        assert result is True
-        assert player.x == 10
-        assert player.y == 11
+        gamestate = GameState(player=Player(10, 10))
+        gamestate = advance_step(gamestate, (0, 1))
+        assert gamestate.player.x == 10
+        assert gamestate.player.y == 11
     
     def test_move_upleft(self):
         """Test moving diagonally up-left."""
-        player = Player(10, 10)
-        result = player.move(-1, -1)
-        assert result is True
-        assert player.x == 9
-        assert player.y == 9
+        gamestate = GameState(player=Player(10, 10))
+        gamestate = advance_step(gamestate, (-1, -1))
+        assert gamestate.player.x == 9
+        assert gamestate.player.y == 9
     
     def test_move_upright(self):
         """Test moving diagonally up-right."""
-        player = Player(10, 10)
-        result = player.move(1, -1)
-        assert result is True
-        assert player.x == 11
-        assert player.y == 9
+        gamestate = GameState(player=Player(10, 10))
+        gamestate = advance_step(gamestate, (1, -1))
+        assert gamestate.player.x == 11
+        assert gamestate.player.y == 9
     
     def test_move_downleft(self):
         """Test moving diagonally down-left."""
-        player = Player(10, 10)
-        result = player.move(-1, 1)
-        assert result is True
-        assert player.x == 9
-        assert player.y == 11
+        gamestate = GameState(player=Player(10, 10))
+        gamestate = advance_step(gamestate, (-1, 1))
+        assert gamestate.player.x == 9
+        assert gamestate.player.y == 11
     
     def test_move_downright(self):
         """Test moving diagonally down-right."""
-        player = Player(10, 10)
-        result = player.move(1, 1)
-        assert result is True
-        assert player.x == 11
-        assert player.y == 11
+        gamestate = GameState(player=Player(10, 10))
+        gamestate = advance_step(gamestate, (1, 1))
+        assert gamestate.player.x == 11
+        assert gamestate.player.y == 11
     
     def test_move_out_of_bounds_left(self):
         """Test that moving out of bounds to the left is prevented."""
-        player = Player(0, 10)
-        result = player.move(-1, 0)
-        assert result is False
-        assert player.x == 0
-        assert player.y == 10
+        gamestate = GameState(player=Player(0, 10))
+        gamestate = advance_step(gamestate, (-1, 0))
+        assert gamestate.player.x == 0
+        assert gamestate.player.y == 10
     
     def test_move_out_of_bounds_right(self):
         """Test that moving out of bounds to the right is prevented."""
-        player = Player(GRID_WIDTH - 1, 10)
-        result = player.move(1, 0)
-        assert result is False
-        assert player.x == GRID_WIDTH - 1
-        assert player.y == 10
+        gamestate = GameState(player=Player(GRID_WIDTH - 1, 10))
+        gamestate = advance_step(gamestate, (1, 0))
+        assert gamestate.player.x == GRID_WIDTH - 1
+        assert gamestate.player.y == 10
     
     def test_move_out_of_bounds_up(self):
         """Test that moving out of bounds upward is prevented."""
-        player = Player(10, 0)
-        result = player.move(0, -1)
-        assert result is False
-        assert player.x == 10
-        assert player.y == 0
+        gamestate = GameState(player=Player(10, 0))
+        gamestate = advance_step(gamestate, (0, -1))
+        assert gamestate.player.x == 10
+        assert gamestate.player.y == 0
     
     def test_move_out_of_bounds_down(self):
         """Test that moving out of bounds downward is prevented."""
-        player = Player(10, GRID_HEIGHT - 1)
-        result = player.move(0, 1)
-        assert result is False
-        assert player.x == 10
-        assert player.y == GRID_HEIGHT - 1
+        gamestate = GameState(player=Player(10, GRID_HEIGHT - 1))
+        gamestate = advance_step(gamestate, (0, 1))
+        assert gamestate.player.x == 10
+        assert gamestate.player.y == GRID_HEIGHT - 1
     
     def test_move_out_of_bounds_topleft_corner(self):
         """Test that moving out of bounds from top-left corner is prevented."""
-        player = Player(0, 0)
-        result = player.move(-1, -1)
-        assert result is False
-        assert player.x == 0
-        assert player.y == 0
+        gamestate = GameState(player=Player(0, 0))
+        gamestate = advance_step(gamestate, (-1, -1))
+        assert gamestate.player.x == 0
+        assert gamestate.player.y == 0
     
     def test_move_out_of_bounds_topright_corner(self):
         """Test that moving out of bounds from top-right corner is prevented."""
-        player = Player(GRID_WIDTH - 1, 0)
-        result = player.move(1, -1)
-        assert result is False
-        assert player.x == GRID_WIDTH - 1
-        assert player.y == 0
+        gamestate = GameState(player=Player(GRID_WIDTH - 1, 0))
+        gamestate = advance_step(gamestate, (1, -1))
+        assert gamestate.player.x == GRID_WIDTH - 1
+        assert gamestate.player.y == 0
     
     def test_move_out_of_bounds_bottomleft_corner(self):
         """Test that moving out of bounds from bottom-left corner is prevented."""
-        player = Player(0, GRID_HEIGHT - 1)
-        result = player.move(-1, 1)
-        assert result is False
-        assert player.x == 0
-        assert player.y == GRID_HEIGHT - 1
+        gamestate = GameState(player=Player(0, GRID_HEIGHT - 1))
+        gamestate = advance_step(gamestate, (-1, 1))
+        assert gamestate.player.x == 0
+        assert gamestate.player.y == GRID_HEIGHT - 1
     
     def test_move_out_of_bounds_bottomright_corner(self):
         """Test that moving out of bounds from bottom-right corner is prevented."""
-        player = Player(GRID_WIDTH - 1, GRID_HEIGHT - 1)
-        result = player.move(1, 1)
-        assert result is False
-        assert player.x == GRID_WIDTH - 1
-        assert player.y == GRID_HEIGHT - 1
+        gamestate = GameState(player=Player(GRID_WIDTH - 1, GRID_HEIGHT - 1))
+        gamestate = advance_step(gamestate, (1, 1))
+        assert gamestate.player.x == GRID_WIDTH - 1
+        assert gamestate.player.y == GRID_HEIGHT - 1
 
 
 class TestGame:
@@ -152,11 +138,10 @@ class TestGame:
     def test_game_initialization(self):
         """Test that a game initializes correctly."""
         game = Game()
-        assert game.width == GRID_WIDTH
-        assert game.height == GRID_HEIGHT
-        assert game.player is not None
-        assert game.player.x == GRID_WIDTH // 2
-        assert game.player.y == GRID_HEIGHT // 2
+        assert game.gamestate is not None
+        assert game.gamestate.player is not None
+        assert game.gamestate.player.x == GRID_WIDTH // 2
+        assert game.gamestate.player.y == GRID_HEIGHT // 2
         assert game.running is True
     
     def test_direction_map_has_all_numpad_keys(self):
@@ -262,7 +247,7 @@ class TestMapView:
         """Test that MapView handles movement keys."""
         map_view = MapView()
         game = Game()
-        initial_x = game.player.x
+        initial_x = game.gamestate.player.x
         
         # Test moving right
         event = tcod.event.KeyDown(
@@ -272,8 +257,8 @@ class TestMapView:
         )
         map_view.handle_event(event, game)
         
-        assert game.player.x == initial_x + 1
-        assert game.player.y == game.player.y
+        assert game.gamestate.player.x == initial_x + 1
+        assert game.gamestate.player.y == game.gamestate.player.y
     
     def test_mapview_render(self):
         """Test that MapView renders without errors."""
@@ -446,4 +431,73 @@ class TestScreenIntegration:
         
         # Verify console was used
         assert console.print.called
+
+
+class TestGameState:
+    """Tests for the GameState class."""
+    
+    def test_gamestate_initialization(self):
+        """Test that GameState initializes correctly."""
+        player = Player(5, 10)
+        gamestate = GameState(player=player)
+        assert gamestate.player == player
+        assert gamestate.player.x == 5
+        assert gamestate.player.y == 10
+    
+    def test_gamestate_is_dataclass(self):
+        """Test that GameState is a dataclass."""
+        player = Player(5, 10)
+        gamestate = GameState(player=player)
+        # Dataclasses have __dataclass_fields__ attribute
+        assert hasattr(gamestate, '__dataclass_fields__')
+
+
+class TestSerialization:
+    """Tests for serialization and deserialization of game state."""
+    
+    def test_gamestate_json_roundtrip(self):
+        """Test that GameState with Player can be serialized to JSON and back without data loss."""
+        # Create original gamestate
+        original = GameState(player=Player(42, 13, '&'))
+        
+        # Serialize to JSON string
+        json_str = json.dumps(asdict(original))
+        
+        # Deserialize from JSON string
+        parsed = json.loads(json_str)
+        player = Player(**parsed['player'])
+        deserialized = GameState(player=player)
+        
+        # Verify all data is preserved
+        assert deserialized.player.x == original.player.x
+        assert deserialized.player.y == original.player.y
+        assert deserialized.player.symbol == original.player.symbol
+
+
+class TestAdvanceStep:
+    """Tests for the advance_step function."""
+    
+    def test_advance_step_with_no_action(self):
+        """Test that advance_step returns unchanged gamestate with no action."""
+        gamestate = GameState(player=Player(10, 10))
+        result = advance_step(gamestate, None)
+        assert result.player.x == 10
+        assert result.player.y == 10
+    
+    def test_advance_step_mutates_gamestate(self):
+        """Test that advance_step mutates the gamestate."""
+        gamestate = GameState(player=Player(10, 10))
+        result = advance_step(gamestate, (1, 0))
+        # The function should mutate and return the same gamestate object
+        assert result is gamestate
+        assert result.player.x == 11
+    
+    def test_advance_step_respects_grid_bounds(self):
+        """Test that advance_step respects grid bounds."""
+        # Try to move out of bounds from edge
+        gamestate = GameState(player=Player(GRID_WIDTH - 1, GRID_HEIGHT - 1))
+        result = advance_step(gamestate, (1, 1))
+        assert result.player.x == GRID_WIDTH - 1  # Should not move beyond bounds
+        assert result.player.y == GRID_HEIGHT - 1
+
 
