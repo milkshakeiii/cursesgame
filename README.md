@@ -38,8 +38,6 @@ python game.py
 
 ### Global Controls (All Screens)
 - **Alt+Enter**: Toggle fullscreen/windowed mode
-- **Ctrl+=**: Increase text size
-- **Ctrl+-**: Decrease text size
 
 ## Running Tests
 
