@@ -3,7 +3,7 @@
 
 import pytest
 from unittest.mock import Mock, MagicMock, patch
-from game import Player, Game, GRID_WIDTH, GRID_HEIGHT, DEFAULT_FONT_SIZE
+from game import Player, Game, MapView, MainMenu, GRID_WIDTH, GRID_HEIGHT, DEFAULT_FONT_SIZE
 import tcod.event
 
 
@@ -162,7 +162,7 @@ class TestGame:
     def test_direction_map_has_all_numpad_keys(self):
         """Test that direction map contains all 8 numpad directions."""
         game = Game()
-        assert len(game.direction_map) == 8
+        assert len(game.map_view.direction_map) == 8
     
     def test_game_initialization_with_context_and_font(self):
         """Test that a game initializes correctly with context and font path."""
@@ -224,3 +224,226 @@ class TestGame:
         game.handle_event(event)
         
         assert mock_window.fullscreen is True
+
+
+class TestMapView:
+    """Tests for the MapView screen class."""
+    
+    def test_mapview_initialization(self):
+        """Test that MapView initializes correctly."""
+        map_view = MapView()
+        assert len(map_view.direction_map) == 8
+    
+    def test_mapview_handles_quit_event(self):
+        """Test that MapView handles quit events."""
+        map_view = MapView()
+        game = Game()
+        
+        event = tcod.event.Quit()
+        map_view.handle_event(event, game)
+        
+        assert game.running is False
+    
+    def test_mapview_handles_escape_key(self):
+        """Test that MapView handles escape key to quit."""
+        map_view = MapView()
+        game = Game()
+        
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.ESCAPE,
+            mod=tcod.event.Modifier.NONE
+        )
+        map_view.handle_event(event, game)
+        
+        assert game.running is False
+    
+    def test_mapview_handles_movement(self):
+        """Test that MapView handles movement keys."""
+        map_view = MapView()
+        game = Game()
+        initial_x = game.player.x
+        
+        # Test moving right
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.KP_6,
+            mod=tcod.event.Modifier.NONE
+        )
+        map_view.handle_event(event, game)
+        
+        assert game.player.x == initial_x + 1
+        assert game.player.y == game.player.y
+    
+    def test_mapview_render(self):
+        """Test that MapView renders without errors."""
+        map_view = MapView()
+        game = Game()
+        console = Mock()
+        
+        # Should not raise an exception
+        map_view.render(console, game)
+        
+        # Verify console.print was called (player, borders, etc.)
+        assert console.print.called
+
+
+class TestMainMenu:
+    """Tests for the MainMenu screen class."""
+    
+    def test_mainmenu_initialization(self):
+        """Test that MainMenu initializes correctly."""
+        menu = MainMenu()
+        assert menu.options == ["New Game", "Options", "Exit"]
+        assert menu.selected_index == 0
+    
+    def test_mainmenu_handles_quit_event(self):
+        """Test that MainMenu handles quit events."""
+        menu = MainMenu()
+        game = Game()
+        
+        event = tcod.event.Quit()
+        menu.handle_event(event, game)
+        
+        assert game.running is False
+    
+    def test_mainmenu_handles_escape_key(self):
+        """Test that MainMenu handles escape key to quit."""
+        menu = MainMenu()
+        game = Game()
+        
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.ESCAPE,
+            mod=tcod.event.Modifier.NONE
+        )
+        menu.handle_event(event, game)
+        
+        assert game.running is False
+    
+    def test_mainmenu_navigates_down(self):
+        """Test that MainMenu navigates down through options."""
+        menu = MainMenu()
+        game = Game()
+        
+        # Initially at index 0
+        assert menu.selected_index == 0
+        
+        # Press down
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.DOWN,
+            mod=tcod.event.Modifier.NONE
+        )
+        menu.handle_event(event, game)
+        
+        assert menu.selected_index == 1
+    
+    def test_mainmenu_navigates_up(self):
+        """Test that MainMenu navigates up through options."""
+        menu = MainMenu()
+        game = Game()
+        
+        # Initially at index 0
+        assert menu.selected_index == 0
+        
+        # Press up (should wrap to last option)
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.UP,
+            mod=tcod.event.Modifier.NONE
+        )
+        menu.handle_event(event, game)
+        
+        assert menu.selected_index == 2  # Wrapped to "Exit"
+    
+    def test_mainmenu_selects_new_game(self):
+        """Test that selecting New Game switches to MapView."""
+        menu = MainMenu()
+        game = Game()
+        
+        # Ensure we're on "New Game" (index 0)
+        assert menu.selected_index == 0
+        
+        # Press enter to select
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.NONE
+        )
+        menu.handle_event(event, game)
+        
+        # Should switch to MapView
+        assert game.current_screen == game.map_view
+    
+    def test_mainmenu_selects_exit(self):
+        """Test that selecting Exit quits the game."""
+        menu = MainMenu()
+        game = Game()
+        
+        # Navigate to "Exit" (index 2)
+        menu.selected_index = 2
+        
+        # Press enter to select
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.NONE
+        )
+        menu.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_mainmenu_render(self):
+        """Test that MainMenu renders without errors."""
+        menu = MainMenu()
+        game = Game()
+        console = Mock()
+        
+        # Should not raise an exception
+        menu.render(console, game)
+        
+        # Verify console.print was called
+        assert console.print.called
+
+
+class TestScreenIntegration:
+    """Tests for screen system integration."""
+    
+    def test_game_starts_with_main_menu(self):
+        """Test that game starts with MainMenu as current screen."""
+        game = Game()
+        assert isinstance(game.current_screen, MainMenu)
+    
+    def test_game_has_map_view_screen(self):
+        """Test that game has a MapView screen."""
+        game = Game()
+        assert isinstance(game.map_view, MapView)
+    
+    def test_game_delegates_event_to_current_screen(self):
+        """Test that game delegates events to current screen."""
+        game = Game()
+        
+        # Start with MainMenu, select New Game
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.NONE
+        )
+        game.handle_event(event)
+        
+        # Should now be on MapView
+        assert game.current_screen == game.map_view
+    
+    def test_game_delegates_render_to_current_screen(self):
+        """Test that game delegates rendering to current screen."""
+        game = Game()
+        console = Mock()
+        
+        # Should delegate to MainMenu (current screen)
+        game.render(console)
+        
+        # Verify console was used
+        assert console.print.called
+

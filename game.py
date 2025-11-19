@@ -2,6 +2,7 @@
 """A simple game using python-tcod where the player moves an @ symbol."""
 
 from pathlib import Path
+from abc import ABC, abstractmethod
 
 import tcod
 
@@ -13,6 +14,30 @@ GRID_HEIGHT = 25
 # Font size settings
 DEFAULT_FONT_SIZE = 32
 FONT_ASPECT_RATIO = 0.625
+
+
+class Screen(ABC):
+    """Base class for screens in the game."""
+    
+    @abstractmethod
+    def handle_event(self, event: tcod.event.Event, game: 'Game') -> None:
+        """Handle an input event.
+        
+        Args:
+            event: The event to handle
+            game: The game instance
+        """
+        pass
+    
+    @abstractmethod
+    def render(self, console: tcod.console.Console, game: 'Game') -> None:
+        """Render the screen to the console.
+        
+        Args:
+            console: The console to render to
+            game: The game instance
+        """
+        pass
 
 
 class Player:
@@ -52,6 +77,154 @@ class Player:
         return False
 
 
+class MapView(Screen):
+    """Screen where the player moves around the map."""
+    
+    def __init__(self):
+        """Initialize the MapView screen."""
+        # Numpad direction mappings: key -> (dx, dy)
+        self.direction_map = {
+            tcod.event.KeySym.KP_4: (-1, 0),   # left
+            tcod.event.KeySym.KP_6: (1, 0),    # right
+            tcod.event.KeySym.KP_8: (0, -1),   # up
+            tcod.event.KeySym.KP_2: (0, 1),    # down
+            tcod.event.KeySym.KP_7: (-1, -1),  # upleft
+            tcod.event.KeySym.KP_9: (1, -1),   # upright
+            tcod.event.KeySym.KP_1: (-1, 1),   # downleft
+            tcod.event.KeySym.KP_3: (1, 1),    # downright
+        }
+    
+    def handle_event(self, event: tcod.event.Event, game: 'Game') -> None:
+        """Handle an input event.
+        
+        Args:
+            event: The event to handle
+            game: The game instance
+        """
+        if isinstance(event, tcod.event.Quit):
+            game.running = False
+        elif isinstance(event, tcod.event.KeyDown):
+            # Check for Alt+Enter (fullscreen toggle)
+            if event.sym == tcod.event.KeySym.RETURN and (
+                event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
+            ):
+                game.toggle_fullscreen()
+            elif event.sym == tcod.event.KeySym.ESCAPE:
+                game.running = False
+            elif event.sym in self.direction_map:
+                dx, dy = self.direction_map[event.sym]
+                game.player.move(dx, dy, game.width, game.height)
+    
+    def render(self, console: tcod.console.Console, game: 'Game') -> None:
+        """Render the map view to the console.
+        
+        Args:
+            console: The console to render to
+            game: The game instance
+        """
+        console.clear()
+        
+        # Draw border
+        for x in range(game.width):
+            console.print(x, 0, '-')
+            console.print(x, game.height - 1, '-')
+        for y in range(game.height):
+            console.print(0, y, '|')
+            console.print(game.width - 1, y, '|')
+        
+        # Draw corners
+        console.print(0, 0, '+')
+        console.print(game.width - 1, 0, '+')
+        console.print(0, game.height - 1, '+')
+        console.print(game.width - 1, game.height - 1, '+')
+        
+        # Draw instructions
+        console.print(2, game.height - 2, "Use numpad to move. ESC to quit.")
+        
+        # Draw player symbol, make the color green
+        console.print(game.player.x, game.player.y, game.player.symbol, fg=(0, 255, 0))
+
+
+class MainMenu(Screen):
+    """Main menu screen with options for New Game, Options, and Exit."""
+    
+    def __init__(self):
+        """Initialize the MainMenu screen."""
+        self.options = ["New Game", "Options", "Exit"]
+        self.selected_index = 0
+    
+    def handle_event(self, event: tcod.event.Event, game: 'Game') -> None:
+        """Handle an input event.
+        
+        Args:
+            event: The event to handle
+            game: The game instance
+        """
+        if isinstance(event, tcod.event.Quit):
+            game.running = False
+        elif isinstance(event, tcod.event.KeyDown):
+            # Check for Alt+Enter (fullscreen toggle)
+            if event.sym == tcod.event.KeySym.RETURN and (
+                event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
+            ):
+                game.toggle_fullscreen()
+            elif event.sym == tcod.event.KeySym.ESCAPE:
+                game.running = False
+            elif event.sym in (tcod.event.KeySym.UP, tcod.event.KeySym.KP_8):
+                self.selected_index = (self.selected_index - 1) % len(self.options)
+            elif event.sym in (tcod.event.KeySym.DOWN, tcod.event.KeySym.KP_2):
+                self.selected_index = (self.selected_index + 1) % len(self.options)
+            elif event.sym in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER):
+                self._select_option(game)
+    
+    def _select_option(self, game: 'Game') -> None:
+        """Handle selection of a menu option.
+        
+        Args:
+            game: The game instance
+        """
+        selected = self.options[self.selected_index]
+        if selected == "New Game":
+            # Switch to MapView screen
+            game.current_screen = game.map_view
+        elif selected == "Options":
+            # Placeholder for Options screen
+            pass
+        elif selected == "Exit":
+            game.running = False
+    
+    def render(self, console: tcod.console.Console, game: 'Game') -> None:
+        """Render the main menu to the console.
+        
+        Args:
+            console: The console to render to
+            game: The game instance
+        """
+        console.clear()
+        
+        # Draw title
+        title = "MAIN MENU"
+        title_x = (game.width - len(title)) // 2
+        console.print(title_x, game.height // 4, title, fg=(255, 255, 0))
+        
+        # Draw menu options
+        start_y = game.height // 2
+        for i, option in enumerate(self.options):
+            y = start_y + i * 2
+            x = (game.width - len(option) - 4) // 2
+            
+            if i == self.selected_index:
+                # Highlight selected option
+                console.print(x, y, f"> {option} <", fg=(0, 255, 0))
+            else:
+                console.print(x + 2, y, option, fg=(200, 200, 200))
+        
+        # Draw instructions
+        instructions = "Use UP/DOWN or numpad 8/2 to navigate. ENTER to select. ESC to quit."
+        instr_x = (game.width - len(instructions)) // 2
+        console.print(instr_x, game.height - 3, instructions, fg=(150, 150, 150))
+
+
 class Game:
     """Main game class."""
     
@@ -70,17 +243,10 @@ class Game:
         self.font_path = font_path
         self.font_size = DEFAULT_FONT_SIZE
         
-        # Numpad direction mappings: key -> (dx, dy)
-        self.direction_map = {
-            tcod.event.KeySym.KP_4: (-1, 0),   # left
-            tcod.event.KeySym.KP_6: (1, 0),    # right
-            tcod.event.KeySym.KP_8: (0, -1),   # up
-            tcod.event.KeySym.KP_2: (0, 1),    # down
-            tcod.event.KeySym.KP_7: (-1, -1),  # upleft
-            tcod.event.KeySym.KP_9: (1, -1),   # upright
-            tcod.event.KeySym.KP_1: (-1, 1),   # downleft
-            tcod.event.KeySym.KP_3: (1, 1),    # downright
-        }
+        # Initialize screens
+        self.map_view = MapView()
+        self.main_menu = MainMenu()
+        self.current_screen = self.main_menu
 
     def toggle_fullscreen(self) -> None:
         """Toggle between fullscreen and windowed mode."""
@@ -94,52 +260,20 @@ class Game:
         window.fullscreen = not window.fullscreen
     
     def handle_event(self, event: tcod.event.Event) -> None:
-        """Handle an input event.
+        """Handle an input event by delegating to the current screen.
         
         Args:
             event: The event to handle
         """
-        if isinstance(event, tcod.event.Quit):
-            self.running = False
-        elif isinstance(event, tcod.event.KeyDown):
-            # Check for Alt+Enter (fullscreen toggle)
-            if event.sym == tcod.event.KeySym.RETURN and (
-                event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
-            ):
-                self.toggle_fullscreen()
-            elif event.sym == tcod.event.KeySym.ESCAPE:
-                self.running = False
-            elif event.sym in self.direction_map:
-                dx, dy = self.direction_map[event.sym]
-                self.player.move(dx, dy, self.width, self.height)
+        self.current_screen.handle_event(event, self)
     
     def render(self, console: tcod.console.Console) -> None:
-        """Render the game to the console.
+        """Render the game by delegating to the current screen.
         
         Args:
             console: The console to render to
         """
-        console.clear()
-        
-        # Draw border
-        for x in range(self.width):
-            console.print(x, 0, '-')
-            console.print(x, self.height - 1, '-')
-        for y in range(self.height):
-            console.print(0, y, '|')
-            console.print(self.width - 1, y, '|')
-        
-        # Draw corners
-        console.print(0, 0, '+')
-        console.print(self.width - 1, 0, '+')
-        console.print(0, self.height - 1, '+')
-        console.print(self.width - 1, self.height - 1, '+')
-        
-        # Draw instructions
-        console.print(2, self.height - 2, "Use numpad to move. ESC to quit.")
-        
-        # Draw player symbol, make the color green
-        console.print(self.player.x, self.player.y, self.player.symbol, fg=(0, 255, 0))
+        self.current_screen.render(console, self)
 
 
 def main():
