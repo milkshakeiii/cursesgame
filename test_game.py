@@ -136,11 +136,10 @@ class TestGame:
     def test_game_initialization(self):
         """Test that a game initializes correctly."""
         game = Game()
-        assert game.width == GRID_WIDTH
-        assert game.height == GRID_HEIGHT
-        assert game.player is not None
-        assert game.player.x == GRID_WIDTH // 2
-        assert game.player.y == GRID_HEIGHT // 2
+        assert game.gamestate is not None
+        assert game.gamestate.player is not None
+        assert game.gamestate.player.x == GRID_WIDTH // 2
+        assert game.gamestate.player.y == GRID_HEIGHT // 2
         assert game.running is True
     
     def test_direction_map_has_all_numpad_keys(self):
@@ -246,7 +245,7 @@ class TestMapView:
         """Test that MapView handles movement keys."""
         map_view = MapView()
         game = Game()
-        initial_x = game.player.x
+        initial_x = game.gamestate.player.x
         
         # Test moving right
         event = tcod.event.KeyDown(
@@ -256,8 +255,8 @@ class TestMapView:
         )
         map_view.handle_event(event, game)
         
-        assert game.player.x == initial_x + 1
-        assert game.player.y == game.player.y
+        assert game.gamestate.player.x == initial_x + 1
+        assert game.gamestate.player.y == game.gamestate.player.y
     
     def test_mapview_render(self):
         """Test that MapView renders without errors."""
@@ -470,15 +469,11 @@ class TestAdvanceStep:
         assert result.player.x == 11
     
     def test_advance_step_respects_grid_bounds(self):
-        """Test that advance_step respects custom grid bounds."""
-        gamestate = GameState(player=Player(5, 5))
-        # Try to move beyond a small grid
-        result = advance_step(gamestate, (1, 0), grid_width=6, grid_height=6)
-        assert result.player.x == 5  # Should not move beyond bounds
-        
-        # Try valid move within bounds
-        gamestate2 = GameState(player=Player(4, 4))
-        result2 = advance_step(gamestate2, (1, 0), grid_width=6, grid_height=6)
-        assert result2.player.x == 5  # Should move
+        """Test that advance_step respects grid bounds."""
+        # Try to move out of bounds from edge
+        gamestate = GameState(player=Player(GRID_WIDTH - 1, GRID_HEIGHT - 1))
+        result = advance_step(gamestate, (1, 1))
+        assert result.player.x == GRID_WIDTH - 1  # Should not move beyond bounds
+        assert result.player.y == GRID_HEIGHT - 1
 
 
