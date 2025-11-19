@@ -220,9 +220,13 @@ class MainMenu(Screen):
                 console.print(x + 2, y, option, fg=(200, 200, 200))
         
         # Draw instructions
-        instructions = "Use UP/DOWN or numpad 8/2 to navigate. ENTER to select. ESC to quit."
+        instructions = "Use UP/DOWN or numpad 8/2 to navigate."
         instr_x = (game.width - len(instructions)) // 2
         console.print(instr_x, game.height - 3, instructions, fg=(150, 150, 150))
+        instructions_two = "ENTER to select. ESC to quit."
+        instr_x_two = (game.width - len(instructions_two)) // 2
+        console.print(instr_x_two, game.height - 2, instructions_two, fg=(150, 150, 150))
+
 
 
 class Game:
