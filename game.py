@@ -3,6 +3,8 @@
 
 from pathlib import Path
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Optional
 
 import tcod
 
@@ -40,41 +42,45 @@ class Screen(ABC):
         pass
 
 
+@dataclass
 class Player:
     """Represents the player in the game."""
+    x: int
+    y: int
+    symbol: str = '@'
+
+
+@dataclass
+class GameState:
+    """Serializable gamestate data."""
+    player: Player
+
+
+def advance_step(gamestate: GameState, action: Optional[tuple[int, int]], grid_width: int = GRID_WIDTH, grid_height: int = GRID_HEIGHT) -> GameState:
+    """Advance the game by one step based on the player action.
     
-    def __init__(self, x: int, y: int):
-        """Initialize the player at the given position.
+    Args:
+        gamestate: The current game state
+        action: A tuple of (dx, dy) representing the player's movement, or None for no action
+        grid_width: Width of the game grid
+        grid_height: Height of the game grid
         
-        Args:
-            x: Initial x coordinate
-            y: Initial y coordinate
-        """
-        self.x = x
-        self.y = y
-        self.symbol = '@'
+    Returns:
+        The updated game state
+    """
+    if action is None:
+        return gamestate
     
-    def move(self, dx: int, dy: int, grid_width: int = GRID_WIDTH, grid_height: int = GRID_HEIGHT) -> bool:
-        """Attempt to move the player by the given delta.
-        
-        Args:
-            dx: Change in x coordinate
-            dy: Change in y coordinate
-            grid_width: Width of the game grid
-            grid_height: Height of the game grid
-            
-        Returns:
-            True if the move was successful, False if out of bounds
-        """
-        new_x = self.x + dx
-        new_y = self.y + dy
-        
-        # Check bounds
-        if 0 <= new_x < grid_width and 0 <= new_y < grid_height:
-            self.x = new_x
-            self.y = new_y
-            return True
-        return False
+    dx, dy = action
+    new_x = gamestate.player.x + dx
+    new_y = gamestate.player.y + dy
+    
+    # Check bounds and update position if valid
+    if 0 <= new_x < grid_width and 0 <= new_y < grid_height:
+        gamestate.player.x = new_x
+        gamestate.player.y = new_y
+    
+    return gamestate
 
 
 class MapView(Screen):
@@ -113,7 +119,7 @@ class MapView(Screen):
                 game.running = False
             elif event.sym in self.direction_map:
                 dx, dy = self.direction_map[event.sym]
-                game.player.move(dx, dy, game.width, game.height)
+                game.gamestate = advance_step(game.gamestate, (dx, dy), game.width, game.height)
     
     def render(self, console: tcod.console.Console, game: 'Game') -> None:
         """Render the map view to the console.
@@ -142,7 +148,7 @@ class MapView(Screen):
         console.print(2, game.height - 2, "Use numpad to move. ESC to quit.")
         
         # Draw player symbol, make the color green
-        console.print(game.player.x, game.player.y, game.player.symbol, fg=(0, 255, 0))
+        console.print(game.gamestate.player.x, game.gamestate.player.y, game.gamestate.player.symbol, fg=(0, 255, 0))
 
 
 class MainMenu(Screen):
@@ -237,7 +243,7 @@ class Game:
         """
         self.width = GRID_WIDTH
         self.height = GRID_HEIGHT
-        self.player = Player(self.width // 2, self.height // 2)
+        self.gamestate = GameState(player=Player(self.width // 2, self.height // 2))
         self.running = True
         self.context = context
         self.font_path = font_path
@@ -247,6 +253,11 @@ class Game:
         self.map_view = MapView()
         self.main_menu = MainMenu()
         self.current_screen = self.main_menu
+    
+    @property
+    def player(self) -> Player:
+        """Get the player from the gamestate for backward compatibility."""
+        return self.gamestate.player
 
     def toggle_fullscreen(self) -> None:
         """Toggle between fullscreen and windowed mode."""
