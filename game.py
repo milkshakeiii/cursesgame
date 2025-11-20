@@ -85,9 +85,9 @@ def advance_step(gamestate: GameState, action: Optional[tuple[int, int]]) -> Gam
         return gamestate
 
     player = None
-    for unit in gamestate.placeables or []:
-        if isinstance(unit, Player):
-            player = unit
+    for placeable in gamestate.placeables or []:
+        if isinstance(placeable, Player):
+            player = placeable
             break
     if player is None:
         raise ValueError("No player found in gamestate.")
