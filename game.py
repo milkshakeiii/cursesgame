@@ -224,7 +224,7 @@ class MainMenu(Screen):
         selected = self.options[self.selected_index]
         if selected == "New Game":
             # Switch to MapView screen
-            game.current_screen = game.map_view
+            game.current_back_screen = game.map_view
         elif selected == "Options":
             # Placeholder for Options screen
             pass
@@ -286,7 +286,12 @@ class Game:
         # Initialize screens
         self.map_view = MapView()
         self.main_menu = MainMenu()
-        self.current_screen = self.main_menu
+        self.current_back_screen = self.main_menu
+        self.current_front_screen = None
+
+    def current_screen(self) -> Screen:
+        """Get the current active screen."""
+        return self.current_front_screen or self.current_back_screen
 
     def toggle_fullscreen(self) -> None:
         """Toggle between fullscreen and windowed mode."""
@@ -305,7 +310,7 @@ class Game:
         Args:
             event: The event to handle
         """
-        self.current_screen.handle_event(event, self)
+        self.current_screen().handle_event(event, self)
     
     def render(self, console: tcod.console.Console) -> None:
         """Render the game by delegating to the current screen.
@@ -313,7 +318,7 @@ class Game:
         Args:
             console: The console to render to
         """
-        self.current_screen.render(console, self)
+        self.current_screen().render(console, self)
 
 
 def main():
