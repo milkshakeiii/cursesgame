@@ -48,18 +48,17 @@ class Placeable:
     """A base class for objects that can be placed on the grid."""
     x: int
     y: int
+
+
+@dataclass
+class Visible(Placeable):
+    """A base class for visible objects on the grid."""
     symbol: str
     color: tuple[int, int, int]
 
 
 @dataclass
-class Unit(Placeable):
-    """A base class for units in the game."""
-    name: str
-
-
-@dataclass
-class Player(Unit):
+class Player(Visible):
     """Represents the player in the game."""
     symbol: str = '@'
     color: tuple[int, int, int] = (0, 255, 0)
@@ -69,7 +68,7 @@ class Player(Unit):
 @dataclass
 class GameState:
     """Serializable gamestate data."""
-    placed_units: list[Unit] = None
+    placeables: list[Placeable] = None
 
 
 def advance_step(gamestate: GameState, action: Optional[tuple[int, int]]) -> GameState:
@@ -86,7 +85,7 @@ def advance_step(gamestate: GameState, action: Optional[tuple[int, int]]) -> Gam
         return gamestate
 
     player = None
-    for unit in gamestate.placed_units or []:
+    for unit in gamestate.placeables or []:
         if isinstance(unit, Player):
             player = unit
             break
@@ -169,9 +168,19 @@ class MapView(Screen):
         # Draw instructions
         console.print(2, GRID_HEIGHT - 2, "Use numpad to move. ESC to quit.")
         
-        # Draw placed units
-        for unit in game.gamestate.placed_units or []:
-            console.print(unit.x, unit.y, unit.symbol, fg=unit.color)
+        # Draw placed placeables if they are visible
+        for placeable in game.gamestate.placeables or []:
+            if isinstance(placeable, Visible):
+                self._draw_visible(console, placeable)
+
+    def _draw_visible(self, console: tcod.console.Console, visible: Visible) -> None:
+        """Draw a visible object on the console.
+        
+        Args:
+            console: The console to draw on
+            visible: The visible object to draw
+        """
+        console.print(visible.x, visible.y, visible.symbol, fg=visible.color)
 
 
 class MainMenu(Screen):
@@ -268,7 +277,7 @@ class Game:
             context: The tcod.context.Context for the game (optional)
             font_path: Path to the font file (optional)
         """
-        self.gamestate = GameState(placed_units=[Player(x=GRID_WIDTH // 2, y=GRID_HEIGHT // 2)])
+        self.gamestate = GameState(placeables=[Player(x=GRID_WIDTH // 2, y=GRID_HEIGHT // 2)])
         self.running = True
         self.context = context
         self.font_path = font_path
