@@ -2,16 +2,17 @@
 """Screen classes for the game."""
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 import tcod
 
-# Import game module to avoid circular import issues with local imports
-import game as game_module
+if TYPE_CHECKING:
+    import game
 
 
 class Screen(ABC):
     """Base class for screens in the game."""
     
-    def handle_event(self, event: tcod.event.Event, game: 'game_module.Game') -> None:
+    def handle_event(self, event: tcod.event.Event, game: 'game.Game') -> None:
         """Handle an input event.
         
         This method handles common events (Alt+Enter for fullscreen, Escape for quit)
@@ -39,7 +40,7 @@ class Screen(ABC):
             self.handle_specific_event(event, game)
     
     @abstractmethod
-    def handle_specific_event(self, event: tcod.event.Event, game: 'game_module.Game') -> None:
+    def handle_specific_event(self, event: tcod.event.Event, game: 'game.Game') -> None:
         """Handle a screen-specific input event.
         
         Args:
@@ -49,7 +50,7 @@ class Screen(ABC):
         pass
     
     @abstractmethod
-    def render(self, console: tcod.console.Console, game: 'game_module.Game') -> None:
+    def render(self, console: tcod.console.Console, game: 'game.Game') -> None:
         """Render the screen to the console.
         
         Args:
@@ -76,7 +77,7 @@ class MapView(Screen):
             tcod.event.KeySym.KP_3: (1, 1),    # downright
         }
     
-    def handle_specific_event(self, event: tcod.event.Event, game: 'game_module.Game') -> None:
+    def handle_specific_event(self, event: tcod.event.Event, game: 'game.Game') -> None:
         """Handle map-specific input events.
         
         Args:
@@ -85,50 +86,55 @@ class MapView(Screen):
         """
         if isinstance(event, tcod.event.KeyDown):
             if event.sym in self.direction_map:
+                # Import here to avoid circular import at module level
+                import game as gm
                 dx, dy = self.direction_map[event.sym]
-                game.gamestate = game_module.advance_step(game.gamestate, (dx, dy))
+                game.gamestate = gm.advance_step(game.gamestate, (dx, dy))
                 
                 # Check if an encounter was triggered
                 if game.gamestate.active_encounter is not None:
                     game.current_back_screen = game.encounter_screen
     
-    def render(self, console: tcod.console.Console, game: 'game_module.Game') -> None:
+    def render(self, console: tcod.console.Console, game: 'game.Game') -> None:
         """Render the map view to the console.
         
         Args:
             console: The console to render to
             game: The game instance
         """
+        # Import here to avoid circular import at module level
+        import game as gm
+        
         console.clear()
         
         # Draw border
-        for x in range(game_module.GRID_WIDTH):
+        for x in range(gm.GRID_WIDTH):
             console.print(x, 0, '-')
-            console.print(x, game_module.GRID_HEIGHT - 1, '-')
-        for y in range(game_module.GRID_HEIGHT):
+            console.print(x, gm.GRID_HEIGHT - 1, '-')
+        for y in range(gm.GRID_HEIGHT):
             console.print(0, y, '|')
-            console.print(game_module.GRID_WIDTH - 1, y, '|')
+            console.print(gm.GRID_WIDTH - 1, y, '|')
         
         # Draw corners
         console.print(0, 0, '+')
-        console.print(game_module.GRID_WIDTH - 1, 0, '+')
-        console.print(0, game_module.GRID_HEIGHT - 1, '+')
-        console.print(game_module.GRID_WIDTH - 1, game_module.GRID_HEIGHT - 1, '+')
+        console.print(gm.GRID_WIDTH - 1, 0, '+')
+        console.print(0, gm.GRID_HEIGHT - 1, '+')
+        console.print(gm.GRID_WIDTH - 1, gm.GRID_HEIGHT - 1, '+')
         
         # Draw instructions
-        console.print(2, game_module.GRID_HEIGHT - 2, "Use numpad to move. ESC to quit.")
+        console.print(2, gm.GRID_HEIGHT - 2, "Use numpad to move. ESC to quit.")
         
         # Draw placed placeables if they are visible
         for placeable in game.gamestate.placeables or []:
-            if isinstance(placeable, game_module.Visible):
+            if isinstance(placeable, gm.Visible):
                 self._draw_visible(console, placeable)
 
         # Draw the player on top
         for placeable in game.gamestate.placeables or []:
-            if isinstance(placeable, game_module.Player):
+            if isinstance(placeable, gm.Player):
                 self._draw_visible(console, placeable)
 
-    def _draw_visible(self, console: tcod.console.Console, visible: 'game_module.Visible') -> None:
+    def _draw_visible(self, console: tcod.console.Console, visible: 'game.Visible') -> None:
         """Draw a visible object on the console.
         
         Args:
@@ -141,7 +147,7 @@ class MapView(Screen):
 class EncounterScreen(Screen):
     """Screen shown when the player encounters something."""
     
-    def handle_specific_event(self, event: tcod.event.Event, game: 'game_module.Game') -> None:
+    def handle_specific_event(self, event: tcod.event.Event, game: 'game.Game') -> None:
         """Handle encounter-specific input events.
         
         Args:
@@ -154,29 +160,32 @@ class EncounterScreen(Screen):
                 game.gamestate.active_encounter = None
                 game.current_back_screen = game.map_view
     
-    def render(self, console: tcod.console.Console, game: 'game_module.Game') -> None:
+    def render(self, console: tcod.console.Console, game: 'game.Game') -> None:
         """Render the encounter screen to the console.
         
         Args:
             console: The console to render to
             game: The game instance
         """
+        # Import here to avoid circular import at module level
+        import game as gm
+        
         console.clear()
         
         # Draw title
         title = "ENCOUNTER!"
-        title_x = (game_module.GRID_WIDTH - len(title)) // 2
-        console.print(title_x, game_module.GRID_HEIGHT // 3, title, fg=(255, 255, 0))
+        title_x = (gm.GRID_WIDTH - len(title)) // 2
+        console.print(title_x, gm.GRID_HEIGHT // 3, title, fg=(255, 255, 0))
         
         # Draw message
         message = "You encountered something!"
-        message_x = (game_module.GRID_WIDTH - len(message)) // 2
-        console.print(message_x, game_module.GRID_HEIGHT // 2, message, fg=(200, 200, 200))
+        message_x = (gm.GRID_WIDTH - len(message)) // 2
+        console.print(message_x, gm.GRID_HEIGHT // 2, message, fg=(200, 200, 200))
         
         # Draw instructions
         instructions = "Press ENTER or SPACE to return to map"
-        instr_x = (game_module.GRID_WIDTH - len(instructions)) // 2
-        console.print(instr_x, game_module.GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
+        instr_x = (gm.GRID_WIDTH - len(instructions)) // 2
+        console.print(instr_x, gm.GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
 
 
 class MainMenu(Screen):
@@ -187,7 +196,7 @@ class MainMenu(Screen):
         self.options = ["New Game", "Options", "Exit"]
         self.selected_index = 0
     
-    def handle_specific_event(self, event: tcod.event.Event, game: 'game_module.Game') -> None:
+    def handle_specific_event(self, event: tcod.event.Event, game: 'game.Game') -> None:
         """Handle main menu-specific input events.
         
         Args:
@@ -202,7 +211,7 @@ class MainMenu(Screen):
             elif event.sym in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER):
                 self._select_option(game)
     
-    def _select_option(self, game: 'game_module.Game') -> None:
+    def _select_option(self, game: 'game.Game') -> None:
         """Handle selection of a menu option.
         
         Args:
@@ -218,25 +227,28 @@ class MainMenu(Screen):
         elif selected == "Exit":
             game.running = False
     
-    def render(self, console: tcod.console.Console, game: 'game_module.Game') -> None:
+    def render(self, console: tcod.console.Console, game: 'game.Game') -> None:
         """Render the main menu to the console.
         
         Args:
             console: The console to render to
             game: The game instance
         """
+        # Import here to avoid circular import at module level
+        import game as gm
+        
         console.clear()
         
         # Draw title
         title = "MAIN MENU"
-        title_x = (game_module.GRID_WIDTH - len(title)) // 2
-        console.print(title_x, game_module.GRID_HEIGHT // 4, title, fg=(255, 255, 0))
+        title_x = (gm.GRID_WIDTH - len(title)) // 2
+        console.print(title_x, gm.GRID_HEIGHT // 4, title, fg=(255, 255, 0))
         
         # Draw menu options
-        start_y = game_module.GRID_HEIGHT // 2
+        start_y = gm.GRID_HEIGHT // 2
         for i, option in enumerate(self.options):
             y = start_y + i * 2
-            x = (game_module.GRID_WIDTH - len(option) - 4) // 2
+            x = (gm.GRID_WIDTH - len(option) - 4) // 2
             
             if i == self.selected_index:
                 # Highlight selected option
@@ -246,8 +258,8 @@ class MainMenu(Screen):
         
         # Draw instructions
         instructions = "Use UP/DOWN or numpad 8/2 to navigate."
-        instr_x = (game_module.GRID_WIDTH - len(instructions)) // 2
-        console.print(instr_x, game_module.GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
+        instr_x = (gm.GRID_WIDTH - len(instructions)) // 2
+        console.print(instr_x, gm.GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
         instructions_two = "ENTER to select. ESC to quit."
-        instr_x_two = (game_module.GRID_WIDTH - len(instructions_two)) // 2
-        console.print(instr_x_two, game_module.GRID_HEIGHT - 2, instructions_two, fg=(150, 150, 150))
+        instr_x_two = (gm.GRID_WIDTH - len(instructions_two)) // 2
+        console.print(instr_x_two, gm.GRID_HEIGHT - 2, instructions_two, fg=(150, 150, 150))
