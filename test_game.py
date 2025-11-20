@@ -3,12 +3,11 @@
 
 import pytest
 import json
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock
 from dataclasses import asdict
-from game import (Player, Game, MapView, MainMenu, EncounterScreen, GRID_WIDTH, GRID_HEIGHT, 
-                  DEFAULT_FONT_SIZE, GameState, advance_step, Terrain, Encounter, Invisible, 
-                  Visible, generate_map)
-import tcod.event
+from gameplay import *
+from game_data import *
+from game import *
 
 
 def get_player(gamestate: GameState) -> Player:
@@ -31,7 +30,7 @@ class TestPlayer:
     
     def test_move_right(self):
         """Test moving right."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (1, 0))
         player = get_player(gamestate)
         assert player.x == 11
@@ -39,7 +38,7 @@ class TestPlayer:
     
     def test_move_left(self):
         """Test moving left."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (-1, 0))
         player = get_player(gamestate)
         assert player.x == 9
@@ -47,7 +46,7 @@ class TestPlayer:
     
     def test_move_up(self):
         """Test moving up."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (0, -1))
         player = get_player(gamestate)
         assert player.x == 10
@@ -55,7 +54,7 @@ class TestPlayer:
     
     def test_move_down(self):
         """Test moving down."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (0, 1))
         player = get_player(gamestate)
         assert player.x == 10
@@ -63,7 +62,7 @@ class TestPlayer:
     
     def test_move_upleft(self):
         """Test moving diagonally up-left."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (-1, -1))
         player = get_player(gamestate)
         assert player.x == 9
@@ -71,7 +70,7 @@ class TestPlayer:
     
     def test_move_upright(self):
         """Test moving diagonally up-right."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (1, -1))
         player = get_player(gamestate)
         assert player.x == 11
@@ -79,7 +78,7 @@ class TestPlayer:
     
     def test_move_downleft(self):
         """Test moving diagonally down-left."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (-1, 1))
         player = get_player(gamestate)
         assert player.x == 9
@@ -87,7 +86,7 @@ class TestPlayer:
     
     def test_move_downright(self):
         """Test moving diagonally down-right."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (1, 1))
         player = get_player(gamestate)
         assert player.x == 11
@@ -95,7 +94,7 @@ class TestPlayer:
     
     def test_move_out_of_bounds_left(self):
         """Test that moving out of bounds to the left is prevented."""
-        gamestate = GameState(placeables=[Player(0, 10)])
+        gamestate = GameState(placeables=[Player(0, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (-1, 0))
         player = get_player(gamestate)
         assert player.x == 0
@@ -103,7 +102,7 @@ class TestPlayer:
     
     def test_move_out_of_bounds_right(self):
         """Test that moving out of bounds to the right is prevented."""
-        gamestate = GameState(placeables=[Player(GRID_WIDTH - 1, 10)])
+        gamestate = GameState(placeables=[Player(GRID_WIDTH - 1, 10)], active_encounter=None)
         gamestate = advance_step(gamestate, (1, 0))
         player = get_player(gamestate)
         assert player.x == GRID_WIDTH - 1
@@ -111,7 +110,7 @@ class TestPlayer:
     
     def test_move_out_of_bounds_up(self):
         """Test that moving out of bounds upward is prevented."""
-        gamestate = GameState(placeables=[Player(10, 0)])
+        gamestate = GameState(placeables=[Player(10, 0)], active_encounter=None)
         gamestate = advance_step(gamestate, (0, -1))
         player = get_player(gamestate)
         assert player.x == 10
@@ -119,7 +118,7 @@ class TestPlayer:
     
     def test_move_out_of_bounds_down(self):
         """Test that moving out of bounds downward is prevented."""
-        gamestate = GameState(placeables=[Player(10, GRID_HEIGHT - 1)])
+        gamestate = GameState(placeables=[Player(10, GRID_HEIGHT - 1)], active_encounter=None)
         gamestate = advance_step(gamestate, (0, 1))
         player = get_player(gamestate)
         assert player.x == 10
@@ -127,7 +126,7 @@ class TestPlayer:
     
     def test_move_out_of_bounds_topleft_corner(self):
         """Test that moving out of bounds from top-left corner is prevented."""
-        gamestate = GameState(placeables=[Player(0, 0)])
+        gamestate = GameState(placeables=[Player(0, 0)], active_encounter=None)
         gamestate = advance_step(gamestate, (-1, -1))
         player = get_player(gamestate)
         assert player.x == 0
@@ -135,7 +134,7 @@ class TestPlayer:
     
     def test_move_out_of_bounds_topright_corner(self):
         """Test that moving out of bounds from top-right corner is prevented."""
-        gamestate = GameState(placeables=[Player(GRID_WIDTH - 1, 0)])
+        gamestate = GameState(placeables=[Player(GRID_WIDTH - 1, 0)], active_encounter=None)
         gamestate = advance_step(gamestate, (1, -1))
         player = get_player(gamestate)
         assert player.x == GRID_WIDTH - 1
@@ -143,7 +142,7 @@ class TestPlayer:
     
     def test_move_out_of_bounds_bottomleft_corner(self):
         """Test that moving out of bounds from bottom-left corner is prevented."""
-        gamestate = GameState(placeables=[Player(0, GRID_HEIGHT - 1)])
+        gamestate = GameState(placeables=[Player(0, GRID_HEIGHT - 1)], active_encounter=None)
         gamestate = advance_step(gamestate, (-1, 1))
         player = get_player(gamestate)
         assert player.x == 0
@@ -151,7 +150,7 @@ class TestPlayer:
     
     def test_move_out_of_bounds_bottomright_corner(self):
         """Test that moving out of bounds from bottom-right corner is prevented."""
-        gamestate = GameState(placeables=[Player(GRID_WIDTH - 1, GRID_HEIGHT - 1)])
+        gamestate = GameState(placeables=[Player(GRID_WIDTH - 1, GRID_HEIGHT - 1)], active_encounter=None)
         gamestate = advance_step(gamestate, (1, 1))
         player = get_player(gamestate)
         assert player.x == GRID_WIDTH - 1
@@ -468,7 +467,7 @@ class TestGameState:
     def test_gamestate_initialization(self):
         """Test that GameState initializes correctly."""
         player = Player(5, 10)
-        gamestate = GameState(placeables=[player])
+        gamestate = GameState(placeables=[player], active_encounter=None)
         retrieved_player = get_player(gamestate)
         assert retrieved_player == player
         assert retrieved_player.x == 5
@@ -477,7 +476,7 @@ class TestGameState:
     def test_gamestate_is_dataclass(self):
         """Test that GameState is a dataclass."""
         player = Player(5, 10)
-        gamestate = GameState(placeables=[player])
+        gamestate = GameState(placeables=[player], active_encounter=None)
         # Dataclasses have __dataclass_fields__ attribute
         assert hasattr(gamestate, '__dataclass_fields__')
 
@@ -488,7 +487,7 @@ class TestSerialization:
     def test_gamestate_json_roundtrip(self):
         """Test that GameState with Player can be serialized to JSON and back without data loss."""
         # Create original gamestate
-        original = GameState(placeables=[Player(42, 13, '&')])
+        original = GameState(placeables=[Player(42, 13, '&')], active_encounter=None)
         
         # Serialize to JSON string
         json_str = json.dumps(asdict(original))
@@ -496,7 +495,7 @@ class TestSerialization:
         # Deserialize from JSON string
         parsed = json.loads(json_str)
         placeables = [Player(**p) for p in parsed['placeables']]
-        deserialized = GameState(placeables=placeables)
+        deserialized = GameState(placeables=placeables, active_encounter=None)
         
         # Verify all data is preserved
         original_player = get_player(original)
@@ -511,7 +510,7 @@ class TestAdvanceStep:
     
     def test_advance_step_with_no_action(self):
         """Test that advance_step returns unchanged gamestate with no action."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         result = advance_step(gamestate, None)
         player = get_player(result)
         assert player.x == 10
@@ -519,7 +518,7 @@ class TestAdvanceStep:
     
     def test_advance_step_mutates_gamestate(self):
         """Test that advance_step mutates the gamestate."""
-        gamestate = GameState(placeables=[Player(10, 10)])
+        gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
         result = advance_step(gamestate, (1, 0))
         # The function should mutate and return the same gamestate object
         assert result is gamestate
@@ -529,7 +528,7 @@ class TestAdvanceStep:
     def test_advance_step_respects_grid_bounds(self):
         """Test that advance_step respects grid bounds."""
         # Try to move out of bounds from edge
-        gamestate = GameState(placeables=[Player(GRID_WIDTH - 1, GRID_HEIGHT - 1)])
+        gamestate = GameState(placeables=[Player(GRID_WIDTH - 1, GRID_HEIGHT - 1)], active_encounter=None)
         result = advance_step(gamestate, (1, 1))
         player = get_player(result)
         assert player.x == GRID_WIDTH - 1  # Should not move beyond bounds
@@ -609,7 +608,7 @@ class TestEncounterDetection:
         """Test that stepping on an encounter sets active_encounter."""
         player = Player(10, 10)
         encounter = Encounter(11, 10)
-        gamestate = GameState(placeables=[player, encounter])
+        gamestate = GameState(placeables=[player, encounter], active_encounter=None)
         
         # Move player onto encounter
         result = advance_step(gamestate, (1, 0))
@@ -620,7 +619,7 @@ class TestEncounterDetection:
     def test_moving_without_encounter_leaves_active_encounter_none(self):
         """Test that moving without an encounter keeps active_encounter None."""
         player = Player(10, 10)
-        gamestate = GameState(placeables=[player])
+        gamestate = GameState(placeables=[player], active_encounter=None)
         
         # Move player
         result = advance_step(gamestate, (1, 0))
@@ -631,7 +630,7 @@ class TestEncounterDetection:
         """Test that stepping on terrain doesn't trigger an encounter."""
         player = Player(10, 10)
         terrain = Terrain(11, 10, symbol=',', color=(50, 150, 50))
-        gamestate = GameState(placeables=[player, terrain])
+        gamestate = GameState(placeables=[player, terrain], active_encounter=None)
         
         # Move player onto terrain
         result = advance_step(gamestate, (1, 0))
@@ -733,7 +732,7 @@ class TestMapViewEncounterIntegration:
         # Set up gamestate with player and encounter
         player = Player(10, 10)
         encounter = Encounter(11, 10)
-        game.gamestate = GameState(placeables=[player, encounter])
+        game.gamestate = GameState(placeables=[player, encounter], active_encounter=None)
         
         # Move player onto encounter
         event = tcod.event.KeyDown(
@@ -747,3 +746,254 @@ class TestMapViewEncounterIntegration:
         assert game.current_back_screen == game.encounter_screen
         assert game.gamestate.active_encounter is not None
 
+
+class TestScreenBaseEventHandling:
+    """Tests for base Screen class event handling (Alt+Enter and Escape)."""
+    
+    def test_screen_base_handles_alt_enter_on_mapview(self):
+        """Test that base Screen handles Alt+Enter for fullscreen toggle on MapView."""
+        mock_context = Mock()
+        mock_window = Mock()
+        mock_window.fullscreen = False
+        mock_context.sdl_window = mock_window
+        
+        game = Game(context=mock_context)
+        map_view = game.map_view
+        
+        # Create Alt+Enter event
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.LALT
+        )
+        
+        map_view.handle_event(event, game)
+        
+        # Should toggle fullscreen
+        assert mock_window.fullscreen is True
+    
+    def test_screen_base_handles_escape_on_mapview(self):
+        """Test that base Screen handles Escape to quit on MapView."""
+        game = Game()
+        map_view = game.map_view
+        
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.ESCAPE,
+            mod=tcod.event.Modifier.NONE
+        )
+        
+        map_view.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_screen_base_handles_alt_enter_on_encounter_screen(self):
+        """Test that base Screen handles Alt+Enter for fullscreen toggle on EncounterScreen."""
+        mock_context = Mock()
+        mock_window = Mock()
+        mock_window.fullscreen = False
+        mock_context.sdl_window = mock_window
+        
+        game = Game(context=mock_context)
+        encounter_screen = game.encounter_screen
+        
+        # Create Alt+Enter event
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.RALT
+        )
+        
+        encounter_screen.handle_event(event, game)
+        
+        # Should toggle fullscreen
+        assert mock_window.fullscreen is True
+    
+    def test_screen_base_handles_escape_on_encounter_screen(self):
+        """Test that base Screen handles Escape to quit on EncounterScreen."""
+        game = Game()
+        encounter_screen = game.encounter_screen
+        
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.ESCAPE,
+            mod=tcod.event.Modifier.NONE
+        )
+        
+        encounter_screen.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_screen_base_handles_quit_event_on_mapview(self):
+        """Test that base Screen handles Quit event on MapView."""
+        game = Game()
+        map_view = game.map_view
+        
+        event = tcod.event.Quit()
+        map_view.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_screen_base_handles_quit_event_on_encounter_screen(self):
+        """Test that base Screen handles Quit event on EncounterScreen."""
+        game = Game()
+        encounter_screen = game.encounter_screen
+        
+        event = tcod.event.Quit()
+        encounter_screen.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_screen_base_handles_quit_event_on_main_menu(self):
+        """Test that base Screen handles Quit event on MainMenu."""
+        game = Game()
+        main_menu = game.main_menu
+        
+        event = tcod.event.Quit()
+        main_menu.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_mapview_specific_event_handling_still_works(self):
+        """Test that MapView's handle_specific_event still handles movement."""
+        game = Game()
+        map_view = game.map_view
+        player = get_player(game.gamestate)
+        initial_x = player.x
+        
+        # Test moving right (should be handled by handle_specific_event)
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.KP_6,
+            mod=tcod.event.Modifier.NONE
+        )
+        map_view.handle_event(event, game)
+        
+        player = get_player(game.gamestate)
+        assert player.x == initial_x + 1
+    
+    def test_encounter_screen_specific_event_handling_still_works(self):
+        """Test that EncounterScreen's handle_specific_event still handles return."""
+        game = Game()
+        encounter_screen = game.encounter_screen
+        game.gamestate.active_encounter = Encounter(10, 10)
+        
+        # Press enter to return (should be handled by handle_specific_event)
+        # Note: This is RETURN without Alt modifier, so it goes to handle_specific_event
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.NONE
+        )
+        encounter_screen.handle_event(event, game)
+        
+        # Active encounter should be cleared
+        assert game.gamestate.active_encounter is None
+        assert game.current_back_screen == game.map_view
+    
+    def test_main_menu_specific_event_handling_still_works(self):
+        """Test that MainMenu's handle_specific_event still handles navigation."""
+        game = Game()
+        main_menu = game.main_menu
+        
+        # Initially at index 0
+        assert main_menu.selected_index == 0
+        
+        # Press down (should be handled by handle_specific_event)
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.DOWN,
+            mod=tcod.event.Modifier.NONE
+        )
+        main_menu.handle_event(event, game)
+        
+        # Should move to index 1
+        assert main_menu.selected_index == 1
+
+
+
+
+class TestNewGameFlow:
+    """Tests for the complete 'New Game' flow that the user experiences."""
+    
+    def test_new_game_has_player_and_terrain(self):
+        """Test that after selecting New Game, the game has player and terrain."""
+        game = Game()
+        
+        # Simulate selecting "New Game"
+        game.main_menu._select_option(game)
+        
+        # Verify we switched to MapView
+        assert isinstance(game.current_screen(), MapView)
+        
+        # Verify gamestate has placeables
+        assert game.gamestate.placeables is not None
+        assert len(game.gamestate.placeables) > 0
+        
+        # Verify we have a player
+        player_count = sum(1 for p in game.gamestate.placeables if isinstance(p, Player))
+        assert player_count == 1, f"Expected 1 player, found {player_count}"
+        
+        # Verify we have terrain
+        terrain_count = sum(1 for p in game.gamestate.placeables if isinstance(p, Terrain))
+        assert terrain_count > 0, f"Expected terrain, found {terrain_count}"
+    
+    def test_can_move_after_new_game(self):
+        """Test that player can move after selecting New Game."""
+        game = Game()
+        
+        # Select New Game
+        game.main_menu._select_option(game)
+        
+        # Get initial player position
+        player = None
+        for p in game.gamestate.placeables:
+            if isinstance(p, Player):
+                player = p
+                break
+        assert player is not None, "No player found after New Game"
+        initial_x = player.x
+        
+        # Create a movement event (move right)
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.KP_6,
+            mod=tcod.event.Modifier.NONE
+        )
+        
+        # Handle the event - should not raise an error
+        game.current_screen().handle_event(event, game)
+        
+        # Verify player moved
+        assert player.x == initial_x + 1, f"Player should have moved from {initial_x} to {initial_x + 1}, but is at {player.x}"
+    
+    def test_player_and_terrain_render_after_new_game(self):
+        """Test that player and terrain actually render to the console after New Game."""
+        game = Game()
+        
+        # Select New Game
+        game.main_menu._select_option(game)
+        
+        # Create a real console and render
+        console = tcod.console.Console(GRID_WIDTH, GRID_HEIGHT, order="F")
+        game.current_screen().render(console, game)
+        
+        # Check that player symbol '@' is in the console
+        player_found = False
+        terrain_found = False
+        
+        for y in range(GRID_HEIGHT):
+            for x in range(GRID_WIDTH):
+                ch = console.ch[x, y]
+                if ch == ord('@'):
+                    player_found = True
+                if ch == ord(',') or ch == ord('.'):
+                    terrain_found = True
+        
+        assert player_found, "Player '@' symbol not found in rendered console"
+        assert terrain_found, "Terrain symbols not found in rendered console"
