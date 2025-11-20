@@ -3,13 +3,11 @@
 
 import pytest
 import json
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock
 from dataclasses import asdict
-from game import (Player, Game, GRID_WIDTH, GRID_HEIGHT, 
-                  DEFAULT_FONT_SIZE, GameState, advance_step, Terrain, Encounter, Invisible, 
-                  Visible, generate_map)
-from screens import MapView, MainMenu, EncounterScreen
-import tcod.event
+from gameplay import *
+from game_data import *
+from game import *
 
 
 def get_player(gamestate: GameState) -> Player:

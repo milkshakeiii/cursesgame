@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from typing import Optional
 
+
 # Grid dimensions
 GRID_WIDTH = 50
 GRID_HEIGHT = 25
