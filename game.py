@@ -58,6 +58,24 @@ class Visible(Placeable):
 
 
 @dataclass
+class Invisible(Placeable):
+    """A base class for invisible objects on the grid."""
+    pass
+
+
+@dataclass
+class Terrain(Visible):
+    """Represents terrain tiles on the map."""
+    pass
+
+
+@dataclass
+class Encounter(Invisible):
+    """Represents an invisible encounter trigger on the map."""
+    pass
+
+
+@dataclass
 class Player(Visible):
     """Represents the player in the game."""
     symbol: str = '@'
@@ -69,6 +87,43 @@ class Player(Visible):
 class GameState:
     """Serializable gamestate data."""
     placeables: list[Placeable] = None
+    active_encounter: Optional[Encounter] = None
+
+
+def generate_map() -> GameState:
+    """Generate a map with terrain, encounters, and a player.
+    
+    Returns:
+        A GameState with placeables including terrain, encounters, and player.
+    """
+    placeables = []
+    
+    # Add player at center
+    placeables.append(Player(x=GRID_WIDTH // 2, y=GRID_HEIGHT // 2))
+    
+    # Add terrain tiles throughout the map
+    # Create a pattern of grass (,) and rocky (.) terrain
+    for y in range(1, GRID_HEIGHT - 1):
+        for x in range(1, GRID_WIDTH - 1):
+            # Skip player starting position
+            if x == GRID_WIDTH // 2 and y == GRID_HEIGHT // 2:
+                continue
+            
+            # Create a pattern: grass in some areas, rocky in others
+            if (x + y) % 3 == 0:
+                placeables.append(Terrain(x=x, y=y, symbol=',', color=(50, 150, 50)))
+            else:
+                placeables.append(Terrain(x=x, y=y, symbol='.', color=(150, 150, 150)))
+    
+    # Add some encounters on random tiles
+    # Place encounters at specific locations for now
+    encounter_positions = [
+        (10, 10), (15, 12), (30, 8), (20, 15), (35, 18), (8, 20)
+    ]
+    for x, y in encounter_positions:
+        placeables.append(Encounter(x=x, y=y))
+    
+    return GameState(placeables=placeables)
 
 
 def advance_step(gamestate: GameState, action: Optional[tuple[int, int]]) -> GameState:
@@ -100,6 +155,13 @@ def advance_step(gamestate: GameState, action: Optional[tuple[int, int]]) -> Gam
     if 0 <= new_x < GRID_WIDTH and 0 <= new_y < GRID_HEIGHT:
         player.x = new_x
         player.y = new_y
+        
+        # Check if player stepped on an encounter
+        for placeable in gamestate.placeables or []:
+            if isinstance(placeable, Encounter):
+                if placeable.x == player.x and placeable.y == player.y:
+                    gamestate.active_encounter = placeable
+                    break
     
     return gamestate
 
@@ -141,6 +203,10 @@ class MapView(Screen):
             elif event.sym in self.direction_map:
                 dx, dy = self.direction_map[event.sym]
                 game.gamestate = advance_step(game.gamestate, (dx, dy))
+                
+                # Check if an encounter was triggered
+                if game.gamestate.active_encounter is not None:
+                    game.current_back_screen = game.encounter_screen
     
     def render(self, console: tcod.console.Console, game: 'Game') -> None:
         """Render the map view to the console.
@@ -181,6 +247,56 @@ class MapView(Screen):
             visible: The visible object to draw
         """
         console.print(visible.x, visible.y, visible.symbol, fg=visible.color)
+
+
+class EncounterScreen(Screen):
+    """Screen shown when the player encounters something."""
+    
+    def handle_event(self, event: tcod.event.Event, game: 'Game') -> None:
+        """Handle an input event.
+        
+        Args:
+            event: The event to handle
+            game: The game instance
+        """
+        if isinstance(event, tcod.event.Quit):
+            game.running = False
+        elif isinstance(event, tcod.event.KeyDown):
+            # Check for Alt+Enter (fullscreen toggle)
+            if event.sym == tcod.event.KeySym.RETURN and (
+                event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
+            ):
+                game.toggle_fullscreen()
+            elif event.sym == tcod.event.KeySym.ESCAPE:
+                game.running = False
+            elif event.sym in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER, tcod.event.KeySym.SPACE):
+                # Clear the active encounter and return to map
+                game.gamestate.active_encounter = None
+                game.current_back_screen = game.map_view
+    
+    def render(self, console: tcod.console.Console, game: 'Game') -> None:
+        """Render the encounter screen to the console.
+        
+        Args:
+            console: The console to render to
+            game: The game instance
+        """
+        console.clear()
+        
+        # Draw title
+        title = "ENCOUNTER!"
+        title_x = (GRID_WIDTH - len(title)) // 2
+        console.print(title_x, GRID_HEIGHT // 3, title, fg=(255, 255, 0))
+        
+        # Draw message
+        message = "You encountered something!"
+        message_x = (GRID_WIDTH - len(message)) // 2
+        console.print(message_x, GRID_HEIGHT // 2, message, fg=(200, 200, 200))
+        
+        # Draw instructions
+        instructions = "Press ENTER or SPACE to return to map"
+        instr_x = (GRID_WIDTH - len(instructions)) // 2
+        console.print(instr_x, GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
 
 
 class MainMenu(Screen):
@@ -277,7 +393,7 @@ class Game:
             context: The tcod.context.Context for the game (optional)
             font_path: Path to the font file (optional)
         """
-        self.gamestate = GameState(placeables=[Player(x=GRID_WIDTH // 2, y=GRID_HEIGHT // 2)])
+        self.gamestate = generate_map()
         self.running = True
         self.context = context
         self.font_path = font_path
@@ -286,6 +402,7 @@ class Game:
         # Initialize screens
         self.map_view = MapView()
         self.main_menu = MainMenu()
+        self.encounter_screen = EncounterScreen()
         self.current_back_screen = self.main_menu
         self.current_front_screen = None
 

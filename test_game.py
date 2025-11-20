@@ -5,7 +5,9 @@ import pytest
 import json
 from unittest.mock import Mock, MagicMock, patch
 from dataclasses import asdict
-from game import Player, Game, MapView, MainMenu, GRID_WIDTH, GRID_HEIGHT, DEFAULT_FONT_SIZE, GameState, advance_step
+from game import (Player, Game, MapView, MainMenu, EncounterScreen, GRID_WIDTH, GRID_HEIGHT, 
+                  DEFAULT_FONT_SIZE, GameState, advance_step, Terrain, Encounter, Invisible, 
+                  Visible, generate_map)
 import tcod.event
 
 
@@ -532,4 +534,216 @@ class TestAdvanceStep:
         player = get_player(result)
         assert player.x == GRID_WIDTH - 1  # Should not move beyond bounds
         assert player.y == GRID_HEIGHT - 1
+
+
+class TestTerrain:
+    """Tests for the Terrain class."""
+    
+    def test_terrain_is_visible(self):
+        """Test that Terrain is a Visible subclass."""
+        terrain = Terrain(x=5, y=10, symbol=',', color=(50, 150, 50))
+        assert isinstance(terrain, Visible)
+        assert terrain.x == 5
+        assert terrain.y == 10
+        assert terrain.symbol == ','
+        assert terrain.color == (50, 150, 50)
+    
+    def test_terrain_rocky(self):
+        """Test rocky terrain creation."""
+        terrain = Terrain(x=8, y=12, symbol='.', color=(150, 150, 150))
+        assert terrain.symbol == '.'
+        assert terrain.color == (150, 150, 150)
+
+
+class TestEncounter:
+    """Tests for the Encounter class."""
+    
+    def test_encounter_is_invisible(self):
+        """Test that Encounter is an Invisible subclass."""
+        encounter = Encounter(x=10, y=15)
+        assert isinstance(encounter, Invisible)
+        assert encounter.x == 10
+        assert encounter.y == 15
+    
+    def test_encounter_not_visible(self):
+        """Test that Encounter is not a Visible instance."""
+        encounter = Encounter(x=10, y=15)
+        assert not isinstance(encounter, Visible)
+
+
+class TestGenerateMap:
+    """Tests for the generate_map function."""
+    
+    def test_generate_map_creates_gamestate(self):
+        """Test that generate_map creates a GameState."""
+        gamestate = generate_map()
+        assert isinstance(gamestate, GameState)
+        assert gamestate.placeables is not None
+        assert len(gamestate.placeables) > 0
+    
+    def test_generate_map_includes_player(self):
+        """Test that generate_map includes a player."""
+        gamestate = generate_map()
+        player = get_player(gamestate)
+        assert player is not None
+        assert player.x == GRID_WIDTH // 2
+        assert player.y == GRID_HEIGHT // 2
+    
+    def test_generate_map_includes_terrain(self):
+        """Test that generate_map includes terrain."""
+        gamestate = generate_map()
+        terrain_count = sum(1 for p in gamestate.placeables if isinstance(p, Terrain))
+        assert terrain_count > 0
+    
+    def test_generate_map_includes_encounters(self):
+        """Test that generate_map includes encounters."""
+        gamestate = generate_map()
+        encounter_count = sum(1 for p in gamestate.placeables if isinstance(p, Encounter))
+        assert encounter_count > 0
+
+
+class TestEncounterDetection:
+    """Tests for encounter detection in advance_step."""
+    
+    def test_stepping_on_encounter_sets_active_encounter(self):
+        """Test that stepping on an encounter sets active_encounter."""
+        player = Player(10, 10)
+        encounter = Encounter(11, 10)
+        gamestate = GameState(placeables=[player, encounter])
+        
+        # Move player onto encounter
+        result = advance_step(gamestate, (1, 0))
+        
+        assert result.active_encounter is not None
+        assert result.active_encounter == encounter
+    
+    def test_moving_without_encounter_leaves_active_encounter_none(self):
+        """Test that moving without an encounter keeps active_encounter None."""
+        player = Player(10, 10)
+        gamestate = GameState(placeables=[player])
+        
+        # Move player
+        result = advance_step(gamestate, (1, 0))
+        
+        assert result.active_encounter is None
+    
+    def test_stepping_on_non_encounter_tile_no_trigger(self):
+        """Test that stepping on terrain doesn't trigger an encounter."""
+        player = Player(10, 10)
+        terrain = Terrain(11, 10, symbol=',', color=(50, 150, 50))
+        gamestate = GameState(placeables=[player, terrain])
+        
+        # Move player onto terrain
+        result = advance_step(gamestate, (1, 0))
+        
+        assert result.active_encounter is None
+
+
+class TestEncounterScreen:
+    """Tests for the EncounterScreen class."""
+    
+    def test_encounter_screen_initialization(self):
+        """Test that EncounterScreen initializes correctly."""
+        screen = EncounterScreen()
+        assert screen is not None
+    
+    def test_encounter_screen_handles_quit_event(self):
+        """Test that EncounterScreen handles quit events."""
+        screen = EncounterScreen()
+        game = Game()
+        
+        event = tcod.event.Quit()
+        screen.handle_event(event, game)
+        
+        assert game.running is False
+    
+    def test_encounter_screen_handles_escape_key(self):
+        """Test that EncounterScreen handles escape key to quit."""
+        screen = EncounterScreen()
+        game = Game()
+        
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.ESCAPE,
+            mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_event(event, game)
+        
+        assert game.running is False
+    
+    def test_encounter_screen_return_to_map_clears_encounter(self):
+        """Test that returning to map clears active encounter."""
+        screen = EncounterScreen()
+        game = Game()
+        # Set an active encounter
+        encounter = Encounter(10, 10)
+        game.gamestate.active_encounter = encounter
+        
+        # Press enter to return
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_event(event, game)
+        
+        # Active encounter should be cleared
+        assert game.gamestate.active_encounter is None
+        # Should switch back to map view
+        assert game.current_back_screen == game.map_view
+    
+    def test_encounter_screen_space_returns_to_map(self):
+        """Test that space key also returns to map."""
+        screen = EncounterScreen()
+        game = Game()
+        game.gamestate.active_encounter = Encounter(10, 10)
+        
+        # Press space to return
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.SPACE,
+            mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_event(event, game)
+        
+        assert game.gamestate.active_encounter is None
+        assert game.current_back_screen == game.map_view
+    
+    def test_encounter_screen_render(self):
+        """Test that EncounterScreen renders without errors."""
+        screen = EncounterScreen()
+        game = Game()
+        console = Mock()
+        
+        # Should not raise an exception
+        screen.render(console, game)
+        
+        # Verify console.print was called
+        assert console.print.called
+
+
+class TestMapViewEncounterIntegration:
+    """Tests for MapView encounter integration."""
+    
+    def test_mapview_switches_to_encounter_screen_on_encounter(self):
+        """Test that MapView switches to encounter screen when encounter is triggered."""
+        game = Game()
+        map_view = game.map_view
+        
+        # Set up gamestate with player and encounter
+        player = Player(10, 10)
+        encounter = Encounter(11, 10)
+        game.gamestate = GameState(placeables=[player, encounter])
+        
+        # Move player onto encounter
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.KP_6,  # Move right
+            mod=tcod.event.Modifier.NONE
+        )
+        map_view.handle_event(event, game)
+        
+        # Should have switched to encounter screen
+        assert game.current_back_screen == game.encounter_screen
+        assert game.gamestate.active_encounter is not None
 
