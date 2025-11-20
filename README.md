@@ -4,7 +4,8 @@ A simple game using python-tcod where the player moves an @ symbol around a 50x2
 
 The game features a screen system with multiple screens:
 - **Main Menu**: Navigate menu options to start a new game or exit
-- **Map View**: Play the game by moving the player around the map
+- **Map View**: Play the game by moving the player around the map with terrain
+- **Encounter Screen**: Triggered when the player steps on an encounter tile
 
 ## Installation
 
@@ -36,6 +37,10 @@ python game.py
 - **Numpad 3**: Move down-right
 - **ESC**: Quit the game
 
+### Encounter Screen
+- **ENTER** or **SPACE**: Return to map
+- **ESC**: Quit the game
+
 ### Global Controls (All Screens)
 - **Alt+Enter**: Toggle fullscreen/windowed mode
 
@@ -44,15 +49,3 @@ python game.py
 ```bash
 python -m pytest test_game.py -v
 ```
-
-## Features
-
-- **Screen System**: Multiple screens with different functionality
-  - Main Menu with selectable options (New Game, Options, Exit)
-  - Map View for gameplay
-- 50x25 ASCII grid
-- Player represented by '@' symbol
-- 8-directional movement using numpad
-- Boundary checking prevents moving off the grid
-- Border drawn around the play area
-- Fullscreen toggle and text size adjustment
