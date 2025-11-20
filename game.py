@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import tcod
+from tcod import color
 
 
 # Grid dimensions
@@ -43,17 +44,32 @@ class Screen(ABC):
 
 
 @dataclass
-class Player:
-    """Represents the player in the game."""
+class Placeable:
+    """A base class for objects that can be placed on the grid."""
     x: int
     y: int
+    symbol: str
+    color: tuple[int, int, int]
+
+
+@dataclass
+class Unit(Placeable):
+    """A base class for units in the game."""
+    name: str
+
+
+@dataclass
+class Player(Unit):
+    """Represents the player in the game."""
     symbol: str = '@'
+    color: tuple[int, int, int] = (0, 255, 0)
+    name: str = "Player"
 
 
 @dataclass
 class GameState:
     """Serializable gamestate data."""
-    player: Player
+    placed_units: list[Unit] = None
 
 
 def advance_step(gamestate: GameState, action: Optional[tuple[int, int]]) -> GameState:
@@ -68,15 +84,23 @@ def advance_step(gamestate: GameState, action: Optional[tuple[int, int]]) -> Gam
     """
     if action is None:
         return gamestate
+
+    player = None
+    for unit in gamestate.placed_units or []:
+        if isinstance(unit, Player):
+            player = unit
+            break
+    if player is None:
+        raise ValueError("No player found in gamestate.")
     
     dx, dy = action
-    new_x = gamestate.player.x + dx
-    new_y = gamestate.player.y + dy
+    new_x = player.x + dx
+    new_y = player.y + dy
     
     # Check bounds and update position if valid
     if 0 <= new_x < GRID_WIDTH and 0 <= new_y < GRID_HEIGHT:
-        gamestate.player.x = new_x
-        gamestate.player.y = new_y
+        player.x = new_x
+        player.y = new_y
     
     return gamestate
 
@@ -145,8 +169,9 @@ class MapView(Screen):
         # Draw instructions
         console.print(2, GRID_HEIGHT - 2, "Use numpad to move. ESC to quit.")
         
-        # Draw player symbol, make the color green
-        console.print(game.gamestate.player.x, game.gamestate.player.y, game.gamestate.player.symbol, fg=(0, 255, 0))
+        # Draw placed units
+        for unit in game.gamestate.placed_units or []:
+            console.print(unit.x, unit.y, unit.symbol, fg=unit.color)
 
 
 class MainMenu(Screen):
@@ -243,7 +268,7 @@ class Game:
             context: The tcod.context.Context for the game (optional)
             font_path: Path to the font file (optional)
         """
-        self.gamestate = GameState(player=Player(GRID_WIDTH // 2, GRID_HEIGHT // 2))
+        self.gamestate = GameState(placed_units=[Player(x=GRID_WIDTH // 2, y=GRID_HEIGHT // 2)])
         self.running = True
         self.context = context
         self.font_path = font_path
