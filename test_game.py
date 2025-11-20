@@ -5,9 +5,10 @@ import pytest
 import json
 from unittest.mock import Mock, MagicMock, patch
 from dataclasses import asdict
-from game import (Player, Game, MapView, MainMenu, EncounterScreen, GRID_WIDTH, GRID_HEIGHT, 
+from game import (Player, Game, GRID_WIDTH, GRID_HEIGHT, 
                   DEFAULT_FONT_SIZE, GameState, advance_step, Terrain, Encounter, Invisible, 
                   Visible, generate_map)
+from screens import MapView, MainMenu, EncounterScreen
 import tcod.event
 
 
@@ -746,4 +747,174 @@ class TestMapViewEncounterIntegration:
         # Should have switched to encounter screen
         assert game.current_back_screen == game.encounter_screen
         assert game.gamestate.active_encounter is not None
+
+
+class TestScreenBaseEventHandling:
+    """Tests for base Screen class event handling (Alt+Enter and Escape)."""
+    
+    def test_screen_base_handles_alt_enter_on_mapview(self):
+        """Test that base Screen handles Alt+Enter for fullscreen toggle on MapView."""
+        mock_context = Mock()
+        mock_window = Mock()
+        mock_window.fullscreen = False
+        mock_context.sdl_window = mock_window
+        
+        game = Game(context=mock_context)
+        map_view = game.map_view
+        
+        # Create Alt+Enter event
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.LALT
+        )
+        
+        map_view.handle_event(event, game)
+        
+        # Should toggle fullscreen
+        assert mock_window.fullscreen is True
+    
+    def test_screen_base_handles_escape_on_mapview(self):
+        """Test that base Screen handles Escape to quit on MapView."""
+        game = Game()
+        map_view = game.map_view
+        
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.ESCAPE,
+            mod=tcod.event.Modifier.NONE
+        )
+        
+        map_view.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_screen_base_handles_alt_enter_on_encounter_screen(self):
+        """Test that base Screen handles Alt+Enter for fullscreen toggle on EncounterScreen."""
+        mock_context = Mock()
+        mock_window = Mock()
+        mock_window.fullscreen = False
+        mock_context.sdl_window = mock_window
+        
+        game = Game(context=mock_context)
+        encounter_screen = game.encounter_screen
+        
+        # Create Alt+Enter event
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.RALT
+        )
+        
+        encounter_screen.handle_event(event, game)
+        
+        # Should toggle fullscreen
+        assert mock_window.fullscreen is True
+    
+    def test_screen_base_handles_escape_on_encounter_screen(self):
+        """Test that base Screen handles Escape to quit on EncounterScreen."""
+        game = Game()
+        encounter_screen = game.encounter_screen
+        
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.ESCAPE,
+            mod=tcod.event.Modifier.NONE
+        )
+        
+        encounter_screen.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_screen_base_handles_quit_event_on_mapview(self):
+        """Test that base Screen handles Quit event on MapView."""
+        game = Game()
+        map_view = game.map_view
+        
+        event = tcod.event.Quit()
+        map_view.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_screen_base_handles_quit_event_on_encounter_screen(self):
+        """Test that base Screen handles Quit event on EncounterScreen."""
+        game = Game()
+        encounter_screen = game.encounter_screen
+        
+        event = tcod.event.Quit()
+        encounter_screen.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_screen_base_handles_quit_event_on_main_menu(self):
+        """Test that base Screen handles Quit event on MainMenu."""
+        game = Game()
+        main_menu = game.main_menu
+        
+        event = tcod.event.Quit()
+        main_menu.handle_event(event, game)
+        
+        # Should quit the game
+        assert game.running is False
+    
+    def test_mapview_specific_event_handling_still_works(self):
+        """Test that MapView's handle_specific_event still handles movement."""
+        game = Game()
+        map_view = game.map_view
+        player = get_player(game.gamestate)
+        initial_x = player.x
+        
+        # Test moving right (should be handled by handle_specific_event)
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.KP_6,
+            mod=tcod.event.Modifier.NONE
+        )
+        map_view.handle_event(event, game)
+        
+        player = get_player(game.gamestate)
+        assert player.x == initial_x + 1
+    
+    def test_encounter_screen_specific_event_handling_still_works(self):
+        """Test that EncounterScreen's handle_specific_event still handles return."""
+        game = Game()
+        encounter_screen = game.encounter_screen
+        game.gamestate.active_encounter = Encounter(10, 10)
+        
+        # Press enter to return (should be handled by handle_specific_event)
+        # Note: This is RETURN without Alt modifier, so it goes to handle_specific_event
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.NONE
+        )
+        encounter_screen.handle_event(event, game)
+        
+        # Active encounter should be cleared
+        assert game.gamestate.active_encounter is None
+        assert game.current_back_screen == game.map_view
+    
+    def test_main_menu_specific_event_handling_still_works(self):
+        """Test that MainMenu's handle_specific_event still handles navigation."""
+        game = Game()
+        main_menu = game.main_menu
+        
+        # Initially at index 0
+        assert main_menu.selected_index == 0
+        
+        # Press down (should be handled by handle_specific_event)
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.DOWN,
+            mod=tcod.event.Modifier.NONE
+        )
+        main_menu.handle_event(event, game)
+        
+        # Should move to index 1
+        assert main_menu.selected_index == 1
+
 

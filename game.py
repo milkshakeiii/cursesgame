@@ -2,12 +2,13 @@
 """A simple game using python-tcod where the player moves an @ symbol."""
 
 from pathlib import Path
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
 import tcod
 from tcod import color
+
+from screens import Screen, MapView, EncounterScreen, MainMenu
 
 
 # Grid dimensions
@@ -17,30 +18,6 @@ GRID_HEIGHT = 25
 # Font size settings
 DEFAULT_FONT_SIZE = 32
 FONT_ASPECT_RATIO = 0.625
-
-
-class Screen(ABC):
-    """Base class for screens in the game."""
-    
-    @abstractmethod
-    def handle_event(self, event: tcod.event.Event, game: 'Game') -> None:
-        """Handle an input event.
-        
-        Args:
-            event: The event to handle
-            game: The game instance
-        """
-        pass
-    
-    @abstractmethod
-    def render(self, console: tcod.console.Console, game: 'Game') -> None:
-        """Render the screen to the console.
-        
-        Args:
-            console: The console to render to
-            game: The game instance
-        """
-        pass
 
 
 @dataclass
@@ -162,225 +139,8 @@ def advance_step(gamestate: GameState, action: Optional[tuple[int, int]]) -> Gam
     return gamestate
 
 
-class MapView(Screen):
-    """Screen where the player moves around the map."""
-    
-    def __init__(self):
-        """Initialize the MapView screen."""
-        # Numpad direction mappings: key -> (dx, dy)
-        self.direction_map = {
-            tcod.event.KeySym.KP_4: (-1, 0),   # left
-            tcod.event.KeySym.KP_6: (1, 0),    # right
-            tcod.event.KeySym.KP_8: (0, -1),   # up
-            tcod.event.KeySym.KP_2: (0, 1),    # down
-            tcod.event.KeySym.KP_7: (-1, -1),  # upleft
-            tcod.event.KeySym.KP_9: (1, -1),   # upright
-            tcod.event.KeySym.KP_1: (-1, 1),   # downleft
-            tcod.event.KeySym.KP_3: (1, 1),    # downright
-        }
-    
-    def handle_event(self, event: tcod.event.Event, game: 'Game') -> None:
-        """Handle an input event.
-        
-        Args:
-            event: The event to handle
-            game: The game instance
-        """
-        if isinstance(event, tcod.event.Quit):
-            game.running = False
-        elif isinstance(event, tcod.event.KeyDown):
-            # Check for Alt+Enter (fullscreen toggle)
-            if event.sym == tcod.event.KeySym.RETURN and (
-                event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
-            ):
-                game.toggle_fullscreen()
-            elif event.sym == tcod.event.KeySym.ESCAPE:
-                game.running = False
-            elif event.sym in self.direction_map:
-                dx, dy = self.direction_map[event.sym]
-                game.gamestate = advance_step(game.gamestate, (dx, dy))
-                
-                # Check if an encounter was triggered
-                if game.gamestate.active_encounter is not None:
-                    game.current_back_screen = game.encounter_screen
-    
-    def render(self, console: tcod.console.Console, game: 'Game') -> None:
-        """Render the map view to the console.
-        
-        Args:
-            console: The console to render to
-            game: The game instance
-        """
-        console.clear()
-        
-        # Draw border
-        for x in range(GRID_WIDTH):
-            console.print(x, 0, '-')
-            console.print(x, GRID_HEIGHT - 1, '-')
-        for y in range(GRID_HEIGHT):
-            console.print(0, y, '|')
-            console.print(GRID_WIDTH - 1, y, '|')
-        
-        # Draw corners
-        console.print(0, 0, '+')
-        console.print(GRID_WIDTH - 1, 0, '+')
-        console.print(0, GRID_HEIGHT - 1, '+')
-        console.print(GRID_WIDTH - 1, GRID_HEIGHT - 1, '+')
-        
-        # Draw instructions
-        console.print(2, GRID_HEIGHT - 2, "Use numpad to move. ESC to quit.")
-        
-        # Draw placed placeables if they are visible
-        for placeable in game.gamestate.placeables or []:
-            if isinstance(placeable, Visible):
-                self._draw_visible(console, placeable)
-
-        # Draw the player on top
-        for placeable in game.gamestate.placeables or []:
-            if isinstance(placeable, Player):
-                self._draw_visible(console, placeable)
-
-    def _draw_visible(self, console: tcod.console.Console, visible: Visible) -> None:
-        """Draw a visible object on the console.
-        
-        Args:
-            console: The console to draw on
-            visible: The visible object to draw
-        """
-        console.print(visible.x, visible.y, visible.symbol, fg=visible.color)
 
 
-class EncounterScreen(Screen):
-    """Screen shown when the player encounters something."""
-    
-    def handle_event(self, event: tcod.event.Event, game: 'Game') -> None:
-        """Handle an input event.
-        
-        Args:
-            event: The event to handle
-            game: The game instance
-        """
-        if isinstance(event, tcod.event.Quit):
-            game.running = False
-        elif isinstance(event, tcod.event.KeyDown):
-            # Check for Alt+Enter (fullscreen toggle)
-            if event.sym == tcod.event.KeySym.RETURN and (
-                event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
-            ):
-                game.toggle_fullscreen()
-            elif event.sym == tcod.event.KeySym.ESCAPE:
-                game.running = False
-            elif event.sym in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER, tcod.event.KeySym.SPACE):
-                # Clear the active encounter and return to map
-                game.gamestate.active_encounter = None
-                game.current_back_screen = game.map_view
-    
-    def render(self, console: tcod.console.Console, game: 'Game') -> None:
-        """Render the encounter screen to the console.
-        
-        Args:
-            console: The console to render to
-            game: The game instance
-        """
-        console.clear()
-        
-        # Draw title
-        title = "ENCOUNTER!"
-        title_x = (GRID_WIDTH - len(title)) // 2
-        console.print(title_x, GRID_HEIGHT // 3, title, fg=(255, 255, 0))
-        
-        # Draw message
-        message = "You encountered something!"
-        message_x = (GRID_WIDTH - len(message)) // 2
-        console.print(message_x, GRID_HEIGHT // 2, message, fg=(200, 200, 200))
-        
-        # Draw instructions
-        instructions = "Press ENTER or SPACE to return to map"
-        instr_x = (GRID_WIDTH - len(instructions)) // 2
-        console.print(instr_x, GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
-
-
-class MainMenu(Screen):
-    """Main menu screen with options for New Game, Options, and Exit."""
-    
-    def __init__(self):
-        """Initialize the MainMenu screen."""
-        self.options = ["New Game", "Options", "Exit"]
-        self.selected_index = 0
-    
-    def handle_event(self, event: tcod.event.Event, game: 'Game') -> None:
-        """Handle an input event.
-        
-        Args:
-            event: The event to handle
-            game: The game instance
-        """
-        if isinstance(event, tcod.event.Quit):
-            game.running = False
-        elif isinstance(event, tcod.event.KeyDown):
-            # Check for Alt+Enter (fullscreen toggle)
-            if event.sym == tcod.event.KeySym.RETURN and (
-                event.mod & tcod.event.Modifier.LALT or event.mod & tcod.event.Modifier.RALT
-            ):
-                game.toggle_fullscreen()
-            elif event.sym == tcod.event.KeySym.ESCAPE:
-                game.running = False
-            elif event.sym in (tcod.event.KeySym.UP, tcod.event.KeySym.KP_8):
-                self.selected_index = (self.selected_index - 1) % len(self.options)
-            elif event.sym in (tcod.event.KeySym.DOWN, tcod.event.KeySym.KP_2):
-                self.selected_index = (self.selected_index + 1) % len(self.options)
-            elif event.sym in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER):
-                self._select_option(game)
-    
-    def _select_option(self, game: 'Game') -> None:
-        """Handle selection of a menu option.
-        
-        Args:
-            game: The game instance
-        """
-        selected = self.options[self.selected_index]
-        if selected == "New Game":
-            # Switch to MapView screen
-            game.current_back_screen = game.map_view
-        elif selected == "Options":
-            # Placeholder for Options screen
-            pass
-        elif selected == "Exit":
-            game.running = False
-    
-    def render(self, console: tcod.console.Console, game: 'Game') -> None:
-        """Render the main menu to the console.
-        
-        Args:
-            console: The console to render to
-            game: The game instance
-        """
-        console.clear()
-        
-        # Draw title
-        title = "MAIN MENU"
-        title_x = (GRID_WIDTH - len(title)) // 2
-        console.print(title_x, GRID_HEIGHT // 4, title, fg=(255, 255, 0))
-        
-        # Draw menu options
-        start_y = GRID_HEIGHT // 2
-        for i, option in enumerate(self.options):
-            y = start_y + i * 2
-            x = (GRID_WIDTH - len(option) - 4) // 2
-            
-            if i == self.selected_index:
-                # Highlight selected option
-                console.print(x, y, f"> {option} <", fg=(0, 255, 0))
-            else:
-                console.print(x + 2, y, option, fg=(200, 200, 200))
-        
-        # Draw instructions
-        instructions = "Use UP/DOWN or numpad 8/2 to navigate."
-        instr_x = (GRID_WIDTH - len(instructions)) // 2
-        console.print(instr_x, GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
-        instructions_two = "ENTER to select. ESC to quit."
-        instr_x_two = (GRID_WIDTH - len(instructions_two)) // 2
-        console.print(instr_x_two, GRID_HEIGHT - 2, instructions_two, fg=(150, 150, 150))
 
 
 
