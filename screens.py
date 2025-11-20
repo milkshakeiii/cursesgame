@@ -5,6 +5,9 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 import tcod
 
+from game_data import *
+from gameplay import advance_step
+
 if TYPE_CHECKING:
     import game
 
@@ -84,12 +87,12 @@ class MapView(Screen):
             event: The event to handle
             game: The game instance
         """
+        print(game.gamestate.placeables[0])
+
         if isinstance(event, tcod.event.KeyDown):
             if event.sym in self.direction_map:
-                # Import here to avoid circular import at module level
-                import game as gm
                 dx, dy = self.direction_map[event.sym]
-                game.gamestate = gm.advance_step(game.gamestate, (dx, dy))
+                game.gamestate = advance_step(game.gamestate, (dx, dy))
                 
                 # Check if an encounter was triggered
                 if game.gamestate.active_encounter is not None:
@@ -102,36 +105,34 @@ class MapView(Screen):
             console: The console to render to
             game: The game instance
         """
-        # Import here to avoid circular import at module level
-        import game as gm
         
         console.clear()
         
         # Draw border
-        for x in range(gm.GRID_WIDTH):
+        for x in range(GRID_WIDTH):
             console.print(x, 0, '-')
-            console.print(x, gm.GRID_HEIGHT - 1, '-')
-        for y in range(gm.GRID_HEIGHT):
+            console.print(x, GRID_HEIGHT - 1, '-')
+        for y in range(GRID_HEIGHT):
             console.print(0, y, '|')
-            console.print(gm.GRID_WIDTH - 1, y, '|')
+            console.print(GRID_WIDTH - 1, y, '|')
         
         # Draw corners
         console.print(0, 0, '+')
-        console.print(gm.GRID_WIDTH - 1, 0, '+')
-        console.print(0, gm.GRID_HEIGHT - 1, '+')
-        console.print(gm.GRID_WIDTH - 1, gm.GRID_HEIGHT - 1, '+')
+        console.print(GRID_WIDTH - 1, 0, '+')
+        console.print(0, GRID_HEIGHT - 1, '+')
+        console.print(GRID_WIDTH - 1, GRID_HEIGHT - 1, '+')
         
         # Draw instructions
-        console.print(2, gm.GRID_HEIGHT - 2, "Use numpad to move. ESC to quit.")
+        console.print(2, GRID_HEIGHT - 2, "Use numpad to move. ESC to quit.")
         
         # Draw placed placeables if they are visible
         for placeable in game.gamestate.placeables or []:
-            if isinstance(placeable, gm.Visible):
+            if isinstance(placeable, Visible):
                 self._draw_visible(console, placeable)
 
         # Draw the player on top
         for placeable in game.gamestate.placeables or []:
-            if isinstance(placeable, gm.Player):
+            if isinstance(placeable, Player):
                 self._draw_visible(console, placeable)
 
     def _draw_visible(self, console: tcod.console.Console, visible: 'game.Visible') -> None:
@@ -167,25 +168,23 @@ class EncounterScreen(Screen):
             console: The console to render to
             game: The game instance
         """
-        # Import here to avoid circular import at module level
-        import game as gm
         
         console.clear()
         
         # Draw title
         title = "ENCOUNTER!"
-        title_x = (gm.GRID_WIDTH - len(title)) // 2
-        console.print(title_x, gm.GRID_HEIGHT // 3, title, fg=(255, 255, 0))
+        title_x = (GRID_WIDTH - len(title)) // 2
+        console.print(title_x, GRID_HEIGHT // 3, title, fg=(255, 255, 0))
         
         # Draw message
         message = "You encountered something!"
-        message_x = (gm.GRID_WIDTH - len(message)) // 2
-        console.print(message_x, gm.GRID_HEIGHT // 2, message, fg=(200, 200, 200))
+        message_x = (GRID_WIDTH - len(message)) // 2
+        console.print(message_x, GRID_HEIGHT // 2, message, fg=(200, 200, 200))
         
         # Draw instructions
         instructions = "Press ENTER or SPACE to return to map"
-        instr_x = (gm.GRID_WIDTH - len(instructions)) // 2
-        console.print(instr_x, gm.GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
+        instr_x = (GRID_WIDTH - len(instructions)) // 2
+        console.print(instr_x, GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
 
 
 class MainMenu(Screen):
@@ -234,21 +233,19 @@ class MainMenu(Screen):
             console: The console to render to
             game: The game instance
         """
-        # Import here to avoid circular import at module level
-        import game as gm
         
         console.clear()
         
         # Draw title
         title = "MAIN MENU"
-        title_x = (gm.GRID_WIDTH - len(title)) // 2
-        console.print(title_x, gm.GRID_HEIGHT // 4, title, fg=(255, 255, 0))
+        title_x = (GRID_WIDTH - len(title)) // 2
+        console.print(title_x, GRID_HEIGHT // 4, title, fg=(255, 255, 0))
         
         # Draw menu options
-        start_y = gm.GRID_HEIGHT // 2
+        start_y = GRID_HEIGHT // 2
         for i, option in enumerate(self.options):
             y = start_y + i * 2
-            x = (gm.GRID_WIDTH - len(option) - 4) // 2
+            x = (GRID_WIDTH - len(option) - 4) // 2
             
             if i == self.selected_index:
                 # Highlight selected option
@@ -258,8 +255,8 @@ class MainMenu(Screen):
         
         # Draw instructions
         instructions = "Use UP/DOWN or numpad 8/2 to navigate."
-        instr_x = (gm.GRID_WIDTH - len(instructions)) // 2
-        console.print(instr_x, gm.GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
+        instr_x = (GRID_WIDTH - len(instructions)) // 2
+        console.print(instr_x, GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
         instructions_two = "ENTER to select. ESC to quit."
-        instr_x_two = (gm.GRID_WIDTH - len(instructions_two)) // 2
-        console.print(instr_x_two, gm.GRID_HEIGHT - 2, instructions_two, fg=(150, 150, 150))
+        instr_x_two = (GRID_WIDTH - len(instructions_two)) // 2
+        console.print(instr_x_two, GRID_HEIGHT - 2, instructions_two, fg=(150, 150, 150))
