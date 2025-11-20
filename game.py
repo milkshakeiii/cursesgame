@@ -105,10 +105,6 @@ def generate_map() -> GameState:
     # Create a pattern of grass (,) and rocky (.) terrain
     for y in range(1, GRID_HEIGHT - 1):
         for x in range(1, GRID_WIDTH - 1):
-            # Skip player starting position
-            if x == GRID_WIDTH // 2 and y == GRID_HEIGHT // 2:
-                continue
-            
             # Create a pattern: grass in some areas, rocky in others
             if (x + y) % 3 == 0:
                 placeables.append(Terrain(x=x, y=y, symbol=',', color=(50, 150, 50)))
@@ -237,6 +233,11 @@ class MapView(Screen):
         # Draw placed placeables if they are visible
         for placeable in game.gamestate.placeables or []:
             if isinstance(placeable, Visible):
+                self._draw_visible(console, placeable)
+
+        # Draw the player on top
+        for placeable in game.gamestate.placeables or []:
+            if isinstance(placeable, Player):
                 self._draw_visible(console, placeable)
 
     def _draw_visible(self, console: tcod.console.Console, visible: Visible) -> None:
