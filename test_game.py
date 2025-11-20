@@ -918,3 +918,84 @@ class TestScreenBaseEventHandling:
         assert main_menu.selected_index == 1
 
 
+
+
+class TestNewGameFlow:
+    """Tests for the complete 'New Game' flow that the user experiences."""
+    
+    def test_new_game_has_player_and_terrain(self):
+        """Test that after selecting New Game, the game has player and terrain."""
+        game = Game()
+        
+        # Simulate selecting "New Game"
+        game.main_menu._select_option(game)
+        
+        # Verify we switched to MapView
+        assert isinstance(game.current_screen(), MapView)
+        
+        # Verify gamestate has placeables
+        assert game.gamestate.placeables is not None
+        assert len(game.gamestate.placeables) > 0
+        
+        # Verify we have a player
+        player_count = sum(1 for p in game.gamestate.placeables if isinstance(p, Player))
+        assert player_count == 1, f"Expected 1 player, found {player_count}"
+        
+        # Verify we have terrain
+        terrain_count = sum(1 for p in game.gamestate.placeables if isinstance(p, Terrain))
+        assert terrain_count > 0, f"Expected terrain, found {terrain_count}"
+    
+    def test_can_move_after_new_game(self):
+        """Test that player can move after selecting New Game."""
+        game = Game()
+        
+        # Select New Game
+        game.main_menu._select_option(game)
+        
+        # Get initial player position
+        player = None
+        for p in game.gamestate.placeables:
+            if isinstance(p, Player):
+                player = p
+                break
+        assert player is not None, "No player found after New Game"
+        initial_x = player.x
+        
+        # Create a movement event (move right)
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.KP_6,
+            mod=tcod.event.Modifier.NONE
+        )
+        
+        # Handle the event - should not raise an error
+        game.current_screen().handle_event(event, game)
+        
+        # Verify player moved
+        assert player.x == initial_x + 1, f"Player should have moved from {initial_x} to {initial_x + 1}, but is at {player.x}"
+    
+    def test_player_and_terrain_render_after_new_game(self):
+        """Test that player and terrain actually render to the console after New Game."""
+        game = Game()
+        
+        # Select New Game
+        game.main_menu._select_option(game)
+        
+        # Create a real console and render
+        console = tcod.console.Console(GRID_WIDTH, GRID_HEIGHT, order="F")
+        game.current_screen().render(console, game)
+        
+        # Check that player symbol '@' is in the console
+        player_found = False
+        terrain_found = False
+        
+        for y in range(GRID_HEIGHT):
+            for x in range(GRID_WIDTH):
+                ch = console.ch[x, y]
+                if ch == ord('@'):
+                    player_found = True
+                if ch == ord(',') or ch == ord('.'):
+                    terrain_found = True
+        
+        assert player_found, "Player '@' symbol not found in rendered console"
+        assert terrain_found, "Terrain symbols not found in rendered console"
