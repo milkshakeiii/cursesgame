@@ -5,10 +5,9 @@ from pathlib import Path
 
 import tcod
 
-from screens import Screen, MapView, EncounterScreen, EncounterStartScreen, MainMenu
-from game_data import GRID_WIDTH, GRID_HEIGHT
+from game_data import GRID_HEIGHT, GRID_WIDTH
 from gameplay import generate_map
-
+from screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen
 
 # Font size settings
 DEFAULT_FONT_SIZE = 32
@@ -17,10 +16,10 @@ FONT_ASPECT_RATIO = 0.625
 
 class Game:
     """Main game class."""
-    
+
     def __init__(self, context=None, font_path=None):
         """Initialize the game.
-        
+
         Args:
             context: The tcod.context.Context for the game (optional)
             font_path: Path to the font file (optional)
@@ -30,7 +29,7 @@ class Game:
         self.context = context
         self.font_path = font_path
         self.font_size = DEFAULT_FONT_SIZE
-        
+
         # Initialize screens
         self.map_view = MapView()
         self.main_menu = MainMenu()
@@ -47,24 +46,24 @@ class Game:
         """Toggle between fullscreen and windowed mode."""
         if not self.context:
             return
-        
+
         window = self.context.sdl_window
         if not window:
             return
-        
+
         window.fullscreen = not window.fullscreen
-    
+
     def handle_event(self, event: tcod.event.Event) -> None:
         """Handle an input event by delegating to the current screen.
-        
+
         Args:
             event: The event to handle
         """
         self.current_screen().handle_event(event, self)
-    
+
     def render(self, console: tcod.console.Console) -> None:
         """Render the game by delegating to the current screen.
-        
+
         Args:
             console: The console to render to
         """
@@ -73,13 +72,11 @@ class Game:
 
 def main():
     """Main entry point for the game."""
-    THIS_DIR = Path(__file__, "..")  # Directory of this script file
-    FONT = THIS_DIR / "5x8.bdf"
-    
-    tileset = tcod.tileset.load_bdf(
-        FONT
-    )
-    
+    this_dir = Path(__file__, "..")  # Directory of this script file
+    font_path = this_dir / "5x8.bdf"
+
+    tileset = tcod.tileset.load_bdf(font_path)
+
     with tcod.context.new(
         columns=GRID_WIDTH,
         rows=GRID_HEIGHT,
@@ -88,13 +85,13 @@ def main():
         vsync=True,
     ) as context:
         console = tcod.console.Console(GRID_WIDTH, GRID_HEIGHT, order="F")
-        game = Game(context=context, font_path=FONT)
-        
+        game = Game(context=context, font_path=font_path)
+
         while game.running:
             console.clear()
             game.render(console)
             context.present(console, keep_aspect=True, integer_scaling=False)
-            
+
             for event in tcod.event.wait():
                 context.convert_event(event)
                 game.handle_event(event)
