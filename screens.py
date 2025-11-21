@@ -82,6 +82,9 @@ class MapView(Screen):
     def handle_specific_event(self, event: tcod.event.Event, game: "game.Game") -> None:
         """Handle map-specific input events.
 
+        Processes numpad keys for 8-directional player movement. When the player
+        moves onto an encounter tile, switches to the encounter start screen.
+
         Args:
             event: The event to handle
             game: The game instance
@@ -148,6 +151,9 @@ class EncounterStartScreen(Screen):
     def handle_specific_event(self, event: tcod.event.Event, game: "game.Game") -> None:
         """Handle encounter start screen-specific input events.
 
+        Waits for the player to press Enter or Space to continue to the
+        main encounter screen.
+
         Args:
             event: The event to handle
             game: The game instance
@@ -192,6 +198,9 @@ class EncounterScreen(Screen):
 
     def handle_specific_event(self, event: tcod.event.Event, game: "game.Game") -> None:
         """Handle encounter screen-specific input events.
+
+        Processes combat actions (A for attack, D for defend) and allows
+        fleeing (F key) which returns to the map view.
 
         Args:
             event: The event to handle
@@ -286,6 +295,9 @@ class MainMenu(Screen):
 
     def handle_specific_event(self, event: tcod.event.Event, game: "game.Game") -> None:
         """Handle main menu-specific input events.
+
+        Allows navigation through menu options with UP/DOWN or numpad 8/2,
+        and selection with Enter key.
 
         Args:
             event: The event to handle
