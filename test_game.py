@@ -30,6 +30,30 @@ def get_player(gamestate: GameState) -> Player:
     return None
 
 
+def create_test_creature(
+    name: str = "Test",
+    symbol: str = "t",
+    color: tuple[int, int, int] = (255, 255, 255),
+    health: int = 100,
+    convert: int = 0,
+) -> Creature:
+    """Helper function to create a test creature with common defaults."""
+    return Creature(
+        name=name,
+        symbol=symbol,
+        color=color,
+        strength=10,
+        dexterity=10,
+        constitution=10,
+        active_abilities=[],
+        passive_abilities=[],
+        max_health=100,
+        current_health=health,
+        current_convert=convert,
+        level=1,
+    )
+
+
 class TestPlayer:
     """Tests for the Player class."""
 
@@ -487,20 +511,7 @@ class TestEncounterDetection:
     def test_stepping_on_encounter_sets_active_encounter(self):
         """Test that stepping on an encounter sets active_encounter."""
         player = Player(10, 10)
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=0,
-            level=1,
-        )
+        creature = create_test_creature()
         encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
         gamestate = GameState(placeables=[player, encounter], active_encounter=None)
 
@@ -561,20 +572,7 @@ class TestEncounterStartScreen:
         """Test that pressing Enter or Space continues to main encounter screen."""
         screen = EncounterStartScreen()
         game = Game()
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=0,
-            level=1,
-        )
+        creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
 
         # Test with Enter key
@@ -635,20 +633,7 @@ class TestEncounterScreen:
         """Test that pressing F flees and returns to map."""
         screen = EncounterScreen()
         game = Game()
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=0,
-            level=1,
-        )
+        creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
 
         # Test with F key (Flee)
@@ -683,20 +668,7 @@ class TestMapViewEncounterIntegration:
 
         # Set up gamestate with player and encounter
         player = Player(10, 10)
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=0,
-            level=1,
-        )
+        creature = create_test_creature()
         encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=None)
 
@@ -798,20 +770,7 @@ class TestAttackAction:
     def test_attack_reduces_creature_health(self):
         """Test that attack action reduces creature health by 5."""
         player = Player(10, 10)
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=0,
-            level=1,
-        )
+        creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
@@ -823,20 +782,7 @@ class TestAttackAction:
     def test_attack_defeats_creature_at_zero_health(self):
         """Test that creature is removed when health reaches 0."""
         player = Player(10, 10)
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=5,
-            current_convert=0,
-            level=1,
-        )
+        creature = create_test_creature(health=5)
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
@@ -854,20 +800,7 @@ class TestConvertAction:
     def test_convert_increases_convert_value(self):
         """Test that convert action increases convert by 5."""
         player = Player(10, 10)
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=0,
-            level=1,
-        )
+        creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
@@ -879,20 +812,7 @@ class TestConvertAction:
     def test_convert_adds_creature_to_team_at_100(self):
         """Test that creature is added to team when convert reaches 100."""
         player = Player(10, 10)
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=95,
-            level=1,
-        )
+        creature = create_test_creature(convert=95)
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
@@ -907,20 +827,7 @@ class TestConvertAction:
     def test_convert_caps_at_100(self):
         """Test that convert value doesn't exceed 100."""
         player = Player(10, 10)
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=98,
-            level=1,
-        )
+        creature = create_test_creature(convert=98)
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
@@ -987,20 +894,7 @@ class TestEncounterScreenActions:
         game = Game()
         
         player = Player(10, 10)
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=0,
-            level=1,
-        )
+        creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
@@ -1022,20 +916,7 @@ class TestEncounterScreenActions:
         game = Game()
         
         player = Player(10, 10)
-        creature = Creature(
-            name="Test",
-            symbol="t",
-            color=(255, 255, 255),
-            strength=10,
-            dexterity=10,
-            constitution=10,
-            active_abilities=[],
-            passive_abilities=[],
-            max_health=100,
-            current_health=100,
-            current_convert=0,
-            level=1,
-        )
+        creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 

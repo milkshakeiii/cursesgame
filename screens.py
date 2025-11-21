@@ -336,8 +336,10 @@ class EncounterScreen(Screen):
                 for dx in range(3, grid_width):
                     x = grid_start_x + dx
                     y = grid_start_y + dy + 1
-                    # Get current character and print it with highlight background
-                    console.print(x, y, " ", bg=highlight_color)
+                    # Get current character and preserve it while changing background
+                    current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
+                    current_fg = tuple(console.fg[x, y])
+                    console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
 
         # BOTTOM RIGHT: Actions panel
         actions_start_y = top_panel_height + 2
