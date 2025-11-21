@@ -69,6 +69,6 @@ def generate_map() -> GameState:
         (10, 10), (15, 12), (30, 8), (20, 15), (35, 18), (8, 20)
     ]
     for x, y in encounter_positions:
-        placeables.append(Encounter(x=x, y=y))
+        placeables.append(Encounter(x=x, y=y, symbol="#", color=(255, 255, 255)))
     
     return GameState(placeables=placeables, active_encounter=None)

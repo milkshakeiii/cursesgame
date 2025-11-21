@@ -127,22 +127,22 @@ class MapView(Screen):
         
         # Draw placed placeables if they are visible
         for placeable in game.gamestate.placeables or []:
-            if isinstance(placeable, Visible):
-                self._draw_visible(console, placeable)
+            if placeable.visible and not isinstance(placeable, Player):
+                self._draw_placeable(console, placeable)
 
         # Draw the player on top
         for placeable in game.gamestate.placeables or []:
             if isinstance(placeable, Player):
-                self._draw_visible(console, placeable)
+                self._draw_placeable(console, placeable)
 
-    def _draw_visible(self, console: tcod.console.Console, visible: 'game.Visible') -> None:
+    def _draw_placeable(self, console: tcod.console.Console, placeable: 'game.Placeable') -> None:
         """Draw a visible object on the console.
         
         Args:
             console: The console to draw on
-            visible: The visible object to draw
+            placeable: The visible object to draw
         """
-        console.print(visible.x, visible.y, visible.symbol, fg=visible.color)
+        console.print(placeable.x, placeable.y, placeable.symbol, fg=placeable.color)
 
 
 class EncounterScreen(Screen):

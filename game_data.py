@@ -13,36 +13,27 @@ class Placeable:
     """A base class for objects that can be placed on the grid."""
     x: int
     y: int
-
-
-@dataclass
-class Visible(Placeable):
-    """A base class for visible objects on the grid."""
     symbol: str
     color: tuple[int, int, int]
+    visible: bool
 
 
 @dataclass
-class Invisible(Placeable):
-    """A base class for invisible objects on the grid."""
-    pass
-
-
-@dataclass
-class Terrain(Visible):
+class Terrain(Placeable):
     """Represents terrain tiles on the map."""
-    pass
+    visible: bool = True
 
 
 @dataclass
-class Encounter(Invisible):
-    """Represents an invisible encounter trigger on the map."""
-    pass
+class Encounter(Placeable):
+    """Represents an encounter trigger on the map."""
+    visible: bool = False
 
 
 @dataclass
-class Player(Visible):
+class Player(Placeable):
     """Represents the player in the game."""
+    visible: bool = True
     symbol: str = '@'
     color: tuple[int, int, int] = (0, 255, 0)
     name: str = "Player"
