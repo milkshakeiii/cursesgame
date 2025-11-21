@@ -143,3 +143,4 @@ dmypy.json
 *.vsidx
 .vs/cursesgame/CopilotIndices/18.3.144.54792/CodeChunks.db-wal
 .vs/cursesgame/CopilotIndices/18.3.144.54792/SemanticSymbols.db-wal
+.vs/slnx.sqlite
