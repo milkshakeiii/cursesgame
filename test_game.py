@@ -8,6 +8,7 @@ from dataclasses import asdict
 from gameplay import *
 from game_data import *
 from game import *
+from screens import EncounterStartScreen, EncounterScreen
 
 
 def get_player(gamestate: GameState) -> Player:
@@ -440,7 +441,7 @@ class TestEncounter:
     """Tests for the Encounter class."""
     
     def test_encounter_is_invisible(self):
-        encounter = Encounter(x=10, y=15)
+        encounter = Encounter(x=10, y=15, symbol='#', color=(255, 255, 255))
         assert encounter.visible is False
         assert encounter.x == 10
         assert encounter.y == 15
@@ -483,7 +484,7 @@ class TestEncounterDetection:
     def test_stepping_on_encounter_sets_active_encounter(self):
         """Test that stepping on an encounter sets active_encounter."""
         player = Player(10, 10)
-        encounter = Encounter(11, 10)
+        encounter = Encounter(11, 10, symbol='#', color=(255, 255, 255))
         gamestate = GameState(placeables=[player, encounter], active_encounter=None)
         
         # Move player onto encounter
@@ -514,8 +515,74 @@ class TestEncounterDetection:
         assert result.active_encounter is None
 
 
+class TestEncounterStartScreen:
+    """Tests for the EncounterStartScreen class."""
+    
+    def test_encounter_start_screen_initialization(self):
+        """Test that EncounterStartScreen initializes correctly."""
+        screen = EncounterStartScreen()
+        assert screen is not None
+    
+    def test_encounter_start_screen_handles_quit_and_escape(self):
+        """Test that EncounterStartScreen handles quit events and escape key."""
+        screen = EncounterStartScreen()
+        game = Game()
+        
+        # Test Quit event
+        screen.handle_event(tcod.event.Quit(), game)
+        assert game.running is False
+        
+        # Reset and test Escape key
+        game.running = True
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.ESCAPE,
+            mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_event(event, game)
+        assert game.running is False
+    
+    def test_encounter_start_screen_continue_to_main(self):
+        """Test that pressing Enter or Space continues to main encounter screen."""
+        screen = EncounterStartScreen()
+        game = Game()
+        encounter = Encounter(10, 10, symbol='#', color=(255, 255, 255))
+        
+        # Test with Enter key
+        game.gamestate.active_encounter = encounter
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.RETURN,
+            mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_event(event, game)
+        assert game.current_back_screen == game.encounter_screen
+        
+        # Test with Space key
+        game.current_back_screen = game.encounter_start_screen
+        event = tcod.event.KeyDown(
+            scancode=0,
+            sym=tcod.event.KeySym.SPACE,
+            mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_event(event, game)
+        assert game.current_back_screen == game.encounter_screen
+    
+    def test_encounter_start_screen_render(self):
+        """Test that EncounterStartScreen renders without errors."""
+        screen = EncounterStartScreen()
+        game = Game()
+        console = Mock()
+        
+        # Should not raise an exception
+        screen.render(console, game)
+        
+        # Verify console.print was called
+        assert console.print.called
+
+
 class TestEncounterScreen:
-    """Tests for the EncounterScreen class."""
+    """Tests for the main EncounterScreen class."""
     
     def test_encounter_screen_initialization(self):
         """Test that EncounterScreen initializes correctly."""
@@ -541,28 +608,17 @@ class TestEncounterScreen:
         screen.handle_event(event, game)
         assert game.running is False
     
-    def test_encounter_screen_return_to_map(self):
-        """Test that pressing Enter or Space returns to map and clears encounter."""
+    def test_encounter_screen_flee_returns_to_map(self):
+        """Test that pressing F flees and returns to map."""
         screen = EncounterScreen()
         game = Game()
-        encounter = Encounter(10, 10)
+        encounter = Encounter(10, 10, symbol='#', color=(255, 255, 255))
         
-        # Test with Enter key
+        # Test with F key (Flee)
         game.gamestate.active_encounter = encounter
         event = tcod.event.KeyDown(
             scancode=0,
-            sym=tcod.event.KeySym.RETURN,
-            mod=tcod.event.Modifier.NONE
-        )
-        screen.handle_event(event, game)
-        assert game.gamestate.active_encounter is None
-        assert game.current_back_screen == game.map_view
-        
-        # Test with Space key
-        game.gamestate.active_encounter = encounter
-        event = tcod.event.KeyDown(
-            scancode=0,
-            sym=tcod.event.KeySym.SPACE,
+            sym=tcod.event.KeySym.F,
             mod=tcod.event.Modifier.NONE
         )
         screen.handle_event(event, game)
@@ -586,13 +642,13 @@ class TestMapViewEncounterIntegration:
     """Tests for MapView encounter integration."""
     
     def test_mapview_switches_to_encounter_screen_on_encounter(self):
-        """Test that MapView switches to encounter screen when encounter is triggered."""
+        """Test that MapView switches to encounter start screen when encounter is triggered."""
         game = Game()
         map_view = game.map_view
         
         # Set up gamestate with player and encounter
         player = Player(10, 10)
-        encounter = Encounter(11, 10)
+        encounter = Encounter(11, 10, symbol='#', color=(255, 255, 255))
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=None)
         
         # Move player onto encounter
@@ -603,8 +659,8 @@ class TestMapViewEncounterIntegration:
         )
         map_view.handle_event(event, game)
         
-        # Should have switched to encounter screen
-        assert game.current_back_screen == game.encounter_screen
+        # Should have switched to encounter start screen
+        assert game.current_back_screen == game.encounter_start_screen
         assert game.gamestate.active_encounter is not None
 
 

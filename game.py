@@ -5,7 +5,7 @@ from pathlib import Path
 
 import tcod
 
-from screens import Screen, MapView, EncounterScreen, MainMenu
+from screens import Screen, MapView, EncounterScreen, EncounterStartScreen, MainMenu
 from game_data import GRID_WIDTH, GRID_HEIGHT
 from gameplay import generate_map
 
@@ -34,6 +34,7 @@ class Game:
         # Initialize screens
         self.map_view = MapView()
         self.main_menu = MainMenu()
+        self.encounter_start_screen = EncounterStartScreen()
         self.encounter_screen = EncounterScreen()
         self.current_back_screen = self.main_menu
         self.current_front_screen = None
