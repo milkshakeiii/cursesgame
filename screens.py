@@ -96,7 +96,7 @@ class MapView(Screen):
                 
                 # Check if an encounter was triggered
                 if game.gamestate.active_encounter is not None:
-                    game.current_back_screen = game.encounter_screen
+                    game.current_back_screen = game.encounter_start_screen
     
     def render(self, console: tcod.console.Console, game: 'game.Game') -> None:
         """Render the map view to the console.
@@ -145,11 +145,11 @@ class MapView(Screen):
         console.print(placeable.x, placeable.y, placeable.symbol, fg=placeable.color)
 
 
-class EncounterScreen(Screen):
-    """Screen shown when the player encounters something."""
+class EncounterStartScreen(Screen):
+    """Screen shown when the player first encounters something."""
     
     def handle_specific_event(self, event: tcod.event.Event, game: 'game.Game') -> None:
-        """Handle encounter-specific input events.
+        """Handle encounter start screen-specific input events.
         
         Args:
             event: The event to handle
@@ -157,12 +157,11 @@ class EncounterScreen(Screen):
         """
         if isinstance(event, tcod.event.KeyDown):
             if event.sym in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER, tcod.event.KeySym.SPACE):
-                # Clear the active encounter and return to map
-                game.gamestate.active_encounter = None
-                game.current_back_screen = game.map_view
+                # Continue to main encounter screen
+                game.current_back_screen = game.encounter_screen
     
     def render(self, console: tcod.console.Console, game: 'game.Game') -> None:
-        """Render the encounter screen to the console.
+        """Render the encounter start screen to the console.
         
         Args:
             console: The console to render to
@@ -182,9 +181,96 @@ class EncounterScreen(Screen):
         console.print(message_x, GRID_HEIGHT // 2, message, fg=(200, 200, 200))
         
         # Draw instructions
-        instructions = "Press ENTER or SPACE to return to map"
+        instructions = "Press ENTER or SPACE to continue"
         instr_x = (GRID_WIDTH - len(instructions)) // 2
         console.print(instr_x, GRID_HEIGHT - 3, instructions, fg=(150, 150, 150))
+
+
+class EncounterScreen(Screen):
+    """Main tactical battle screen for encounters."""
+    
+    def handle_specific_event(self, event: tcod.event.Event, game: 'game.Game') -> None:
+        """Handle encounter screen-specific input events.
+        
+        Args:
+            event: The event to handle
+            game: The game instance
+        """
+        if isinstance(event, tcod.event.KeyDown):
+            # Placeholder actions - just show that keys are being recognized
+            if event.sym == tcod.event.KeySym.A:
+                # Action 'a' pressed
+                pass
+            elif event.sym == tcod.event.KeySym.D:
+                # Action 'd' pressed  
+                pass
+            elif event.sym == tcod.event.KeySym.F:
+                # Flee - return to map
+                game.gamestate.active_encounter = None
+                game.current_back_screen = game.map_view
+    
+    def render(self, console: tcod.console.Console, game: 'game.Game') -> None:
+        """Render the encounter screen to the console.
+        
+        Args:
+            console: The console to render to
+            game: The game instance
+        """
+        console.clear()
+        
+        # Calculate layout dimensions
+        # Left half is the info panel
+        info_panel_width = GRID_WIDTH // 2
+        # Right half is split into top and bottom
+        right_panel_x = info_panel_width
+        right_panel_width = GRID_WIDTH - info_panel_width
+        top_panel_height = GRID_HEIGHT // 2
+        
+        # Draw vertical divider between left and right
+        for y in range(GRID_HEIGHT):
+            console.print(info_panel_width, y, '|', fg=(100, 100, 100))
+        
+        # Draw horizontal divider in right panel
+        for x in range(right_panel_x + 1, GRID_WIDTH):
+            console.print(x, top_panel_height, '-', fg=(100, 100, 100))
+        
+        # LEFT PANEL: Info panel
+        console.print(2, 1, "BATTLE INFO", fg=(255, 255, 0))
+        console.print(2, 3, "Turn: 1", fg=(200, 200, 200))
+        console.print(2, 4, "Enemy: ???", fg=(200, 200, 200))
+        console.print(2, 5, "HP: 100/100", fg=(0, 255, 0))
+        
+        # UPPER RIGHT: 9x3 grid with player
+        grid_width = 9
+        grid_height = 3
+        grid_start_x = right_panel_x + (right_panel_width - grid_width) // 2
+        grid_start_y = 2
+        
+        # Draw grid border
+        for x in range(grid_width):
+            console.print(grid_start_x + x, grid_start_y, '-', fg=(100, 100, 100))
+            console.print(grid_start_x + x, grid_start_y + grid_height + 1, '-', fg=(100, 100, 100))
+        for y in range(grid_height + 2):
+            console.print(grid_start_x - 1, grid_start_y + y, '|', fg=(100, 100, 100))
+            console.print(grid_start_x + grid_width, grid_start_y + y, '|', fg=(100, 100, 100))
+        
+        # Draw corners
+        console.print(grid_start_x - 1, grid_start_y, '+', fg=(100, 100, 100))
+        console.print(grid_start_x + grid_width, grid_start_y, '+', fg=(100, 100, 100))
+        console.print(grid_start_x - 1, grid_start_y + grid_height + 1, '+', fg=(100, 100, 100))
+        console.print(grid_start_x + grid_width, grid_start_y + grid_height + 1, '+', fg=(100, 100, 100))
+        
+        # Draw player in the middle of the grid
+        player_x = grid_start_x + grid_width // 2
+        player_y = grid_start_y + grid_height // 2 + 1
+        console.print(player_x, player_y, '@', fg=(0, 255, 0))
+        
+        # BOTTOM RIGHT: Actions panel
+        actions_start_y = top_panel_height + 2
+        console.print(right_panel_x + 2, actions_start_y, "ACTIONS", fg=(255, 255, 0))
+        console.print(right_panel_x + 2, actions_start_y + 2, "[A] Attack", fg=(200, 200, 200))
+        console.print(right_panel_x + 2, actions_start_y + 3, "[D] Defend", fg=(200, 200, 200))
+        console.print(right_panel_x + 2, actions_start_y + 4, "[F] Flee", fg=(200, 200, 200))
 
 
 class MainMenu(Screen):
