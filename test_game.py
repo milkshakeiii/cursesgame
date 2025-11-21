@@ -428,7 +428,6 @@ class TestTerrain:
     """Tests for the Terrain class."""
     
     def test_terrain_is_visible_with_properties(self):
-        """Test that Terrain is a Visible subclass with correct properties."""
         terrain = Terrain(x=5, y=10, symbol=',', color=(50, 150, 50))
         assert terrain.visible is True
         assert terrain.x == 5
@@ -441,7 +440,6 @@ class TestEncounter:
     """Tests for the Encounter class."""
     
     def test_encounter_is_invisible(self):
-        """Test that Encounter is an Invisible subclass, not Visible."""
         encounter = Encounter(x=10, y=15)
         assert encounter.visible is False
         assert encounter.x == 10
