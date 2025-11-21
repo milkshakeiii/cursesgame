@@ -12,6 +12,7 @@ from game import DEFAULT_FONT_SIZE, Game
 from game_data import (
     GRID_HEIGHT,
     GRID_WIDTH,
+    Creature,
     Encounter,
     GameState,
     Player,
@@ -27,6 +28,30 @@ def get_player(gamestate: GameState) -> Player:
         if isinstance(placeable, Player):
             return placeable
     return None
+
+
+def create_test_creature(
+    name: str = "Test",
+    symbol: str = "t",
+    color: tuple[int, int, int] = (255, 255, 255),
+    health: int = 100,
+    convert: int = 0,
+) -> Creature:
+    """Helper function to create a test creature with common defaults."""
+    return Creature(
+        name=name,
+        symbol=symbol,
+        color=color,
+        strength=10,
+        dexterity=10,
+        constitution=10,
+        active_abilities=[],
+        passive_abilities=[],
+        max_health=100,
+        current_health=health,
+        current_convert=convert,
+        level=1,
+    )
 
 
 class TestPlayer:
@@ -55,7 +80,7 @@ class TestPlayer:
     def test_player_movement(self, dx, dy, expected_x, expected_y):
         """Test player movement in all 8 directions."""
         gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
-        gamestate = advance_step(gamestate, (dx, dy))
+        gamestate = advance_step(gamestate, ("move", dx, dy))
         player = get_player(gamestate)
         assert player.x == expected_x
         assert player.y == expected_y
@@ -76,7 +101,7 @@ class TestPlayer:
     def test_boundary_constraints(self, start_x, start_y, dx, dy):
         """Test that player cannot move beyond grid boundaries."""
         gamestate = GameState(placeables=[Player(start_x, start_y)], active_encounter=None)
-        gamestate = advance_step(gamestate, (dx, dy))
+        gamestate = advance_step(gamestate, ("move", dx, dy))
         player = get_player(gamestate)
         assert player.x == start_x  # Should not have moved
         assert player.y == start_y
@@ -407,7 +432,7 @@ class TestAdvanceStep:
     def test_advance_step_mutates_gamestate(self):
         """Test that advance_step mutates the gamestate."""
         gamestate = GameState(placeables=[Player(10, 10)], active_encounter=None)
-        result = advance_step(gamestate, (1, 0))
+        result = advance_step(gamestate, ("move", 1, 0))
         # The function should mutate and return the same gamestate object
         assert result is gamestate
         player = get_player(result)
@@ -419,7 +444,7 @@ class TestAdvanceStep:
         gamestate = GameState(
             placeables=[Player(GRID_WIDTH - 1, GRID_HEIGHT - 1)], active_encounter=None
         )
-        result = advance_step(gamestate, (1, 1))
+        result = advance_step(gamestate, ("move", 1, 1))
         player = get_player(result)
         assert player.x == GRID_WIDTH - 1  # Should not move beyond bounds
         assert player.y == GRID_HEIGHT - 1
@@ -486,11 +511,12 @@ class TestEncounterDetection:
     def test_stepping_on_encounter_sets_active_encounter(self):
         """Test that stepping on an encounter sets active_encounter."""
         player = Player(10, 10)
-        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255))
+        creature = create_test_creature()
+        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
         gamestate = GameState(placeables=[player, encounter], active_encounter=None)
 
         # Move player onto encounter
-        result = advance_step(gamestate, (1, 0))
+        result = advance_step(gamestate, ("move", 1, 0))
 
         assert result.active_encounter is not None
         assert result.active_encounter == encounter
@@ -501,7 +527,7 @@ class TestEncounterDetection:
         gamestate = GameState(placeables=[player], active_encounter=None)
 
         # Move player
-        result = advance_step(gamestate, (1, 0))
+        result = advance_step(gamestate, ("move", 1, 0))
 
         assert result.active_encounter is None
 
@@ -512,7 +538,7 @@ class TestEncounterDetection:
         gamestate = GameState(placeables=[player, terrain], active_encounter=None)
 
         # Move player onto terrain
-        result = advance_step(gamestate, (1, 0))
+        result = advance_step(gamestate, ("move", 1, 0))
 
         assert result.active_encounter is None
 
@@ -546,7 +572,8 @@ class TestEncounterStartScreen:
         """Test that pressing Enter or Space continues to main encounter screen."""
         screen = EncounterStartScreen()
         game = Game()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255))
+        creature = create_test_creature()
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
 
         # Test with Enter key
         game.gamestate.active_encounter = encounter
@@ -606,7 +633,8 @@ class TestEncounterScreen:
         """Test that pressing F flees and returns to map."""
         screen = EncounterScreen()
         game = Game()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255))
+        creature = create_test_creature()
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
 
         # Test with F key (Flee)
         game.gamestate.active_encounter = encounter
@@ -640,7 +668,8 @@ class TestMapViewEncounterIntegration:
 
         # Set up gamestate with player and encounter
         player = Player(10, 10)
-        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255))
+        creature = create_test_creature()
+        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=None)
 
         # Move player onto encounter
@@ -733,3 +762,172 @@ class TestNewGameFlow:
 
         assert player_found, "Player '@' symbol not found in rendered console"
         assert terrain_found, "Terrain symbols not found in rendered console"
+
+
+class TestAttackAction:
+    """Tests for the attack action."""
+
+    def test_attack_reduces_creature_health(self):
+        """Test that attack action reduces creature health by 5."""
+        player = Player(10, 10)
+        creature = create_test_creature()
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Perform attack
+        result = advance_step(gamestate, ("attack", 0, 0))
+
+        assert creature.current_health == 95
+
+    def test_attack_defeats_creature_at_zero_health(self):
+        """Test that creature is removed when health reaches 0."""
+        player = Player(10, 10)
+        creature = create_test_creature(health=5)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Perform attack that should defeat creature
+        result = advance_step(gamestate, ("attack", 0, 0))
+
+        assert creature.current_health == 0
+        assert result.active_encounter is None
+        assert encounter not in result.placeables
+
+
+class TestConvertAction:
+    """Tests for the convert action."""
+
+    def test_convert_increases_convert_value(self):
+        """Test that convert action increases convert by 5."""
+        player = Player(10, 10)
+        creature = create_test_creature()
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Perform convert
+        result = advance_step(gamestate, ("convert", 0, 0))
+
+        assert creature.current_convert == 5
+
+    def test_convert_adds_creature_to_team_at_100(self):
+        """Test that creature is added to team when convert reaches 100."""
+        player = Player(10, 10)
+        creature = create_test_creature(convert=95)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Perform convert that should complete conversion
+        result = advance_step(gamestate, ("convert", 0, 0))
+
+        assert creature.current_convert == 100
+        assert creature in player.creatures
+        assert result.active_encounter is None
+        assert encounter not in result.placeables
+
+    def test_convert_caps_at_100(self):
+        """Test that convert value doesn't exceed 100."""
+        player = Player(10, 10)
+        creature = create_test_creature(convert=98)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Perform convert
+        result = advance_step(gamestate, ("convert", 0, 0))
+
+        assert creature.current_convert == 100
+
+
+class TestEncounterScreenActions:
+    """Tests for encounter screen action handling."""
+
+    def test_encounter_screen_has_action_mode(self):
+        """Test that EncounterScreen initializes with action_mode."""
+        screen = EncounterScreen()
+        assert screen.action_mode is None
+        assert len(screen.target_selection_map) == 9
+
+    def test_encounter_screen_enter_attack_mode(self):
+        """Test that pressing A enters attack mode."""
+        screen = EncounterScreen()
+        game = Game()
+
+        # Press A
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.A, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.action_mode == "attack"
+
+    def test_encounter_screen_enter_convert_mode(self):
+        """Test that pressing C enters convert mode."""
+        screen = EncounterScreen()
+        game = Game()
+
+        # Press C
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.C, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.action_mode == "convert"
+
+    def test_encounter_screen_cancel_action_with_escape(self):
+        """Test that pressing ESC cancels action selection."""
+        screen = EncounterScreen()
+        game = Game()
+
+        # Enter attack mode
+        screen.action_mode = "attack"
+
+        # Press ESC
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.ESCAPE, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.action_mode is None
+
+    def test_encounter_screen_attack_with_numpad(self):
+        """Test that numpad selection performs attack."""
+        screen = EncounterScreen()
+        game = Game()
+        
+        player = Player(10, 10)
+        creature = create_test_creature()
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Enter attack mode
+        screen.action_mode = "attack"
+
+        # Select target with numpad 5 (center)
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.KP_5, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.action_mode is None  # Should exit action mode
+        assert creature.current_health == 95  # Should have dealt 5 damage
+
+    def test_encounter_screen_convert_with_numpad(self):
+        """Test that numpad selection performs convert."""
+        screen = EncounterScreen()
+        game = Game()
+        
+        player = Player(10, 10)
+        creature = create_test_creature()
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Enter convert mode
+        screen.action_mode = "convert"
+
+        # Select target with numpad 5 (center)
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.KP_5, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.action_mode is None  # Should exit action mode
+        assert creature.current_convert == 5  # Should have increased convert

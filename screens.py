@@ -92,7 +92,7 @@ class MapView(Screen):
         if isinstance(event, tcod.event.KeyDown):
             if event.sym in self.direction_map:
                 dx, dy = self.direction_map[event.sym]
-                game.gamestate = advance_step(game.gamestate, (dx, dy))
+                game.gamestate = advance_step(game.gamestate, ("move", dx, dy))
 
                 # Check if an encounter was triggered
                 if game.gamestate.active_encounter is not None:
@@ -196,10 +196,25 @@ class EncounterStartScreen(Screen):
 class EncounterScreen(Screen):
     """Main tactical battle screen for encounters."""
 
+    def __init__(self):
+        """Initialize the EncounterScreen."""
+        self.action_mode = None  # "attack" or "convert" when selecting target
+        self.target_selection_map = {
+            tcod.event.KeySym.KP_7: (0, 0),  # top-left
+            tcod.event.KeySym.KP_8: (1, 0),  # top-center
+            tcod.event.KeySym.KP_9: (2, 0),  # top-right
+            tcod.event.KeySym.KP_4: (0, 1),  # middle-left
+            tcod.event.KeySym.KP_5: (1, 1),  # middle-center
+            tcod.event.KeySym.KP_6: (2, 1),  # middle-right
+            tcod.event.KeySym.KP_1: (0, 2),  # bottom-left
+            tcod.event.KeySym.KP_2: (1, 2),  # bottom-center
+            tcod.event.KeySym.KP_3: (2, 2),  # bottom-right
+        }
+
     def handle_specific_event(self, event: tcod.event.Event, game: "game.Game") -> None:
         """Handle encounter screen-specific input events.
 
-        Processes combat actions (A for attack, D for defend) and allows
+        Processes combat actions (A for attack, C for convert) and allows
         fleeing (F key) which returns to the map view.
 
         Args:
@@ -207,17 +222,36 @@ class EncounterScreen(Screen):
             game: The game instance
         """
         if isinstance(event, tcod.event.KeyDown):
-            # Placeholder actions - just show that keys are being recognized
-            if event.sym == tcod.event.KeySym.A:
-                # Action 'a' pressed
-                pass
-            elif event.sym == tcod.event.KeySym.D:
-                # Action 'd' pressed
-                pass
-            elif event.sym == tcod.event.KeySym.F:
-                # Flee - return to map
-                game.gamestate.active_encounter = None
-                game.current_back_screen = game.map_view
+            # If in target selection mode, handle numpad input
+            if self.action_mode in ("attack", "convert"):
+                if event.sym in self.target_selection_map:
+                    # Get the target coordinates (not used for now, but could be used for multi-target)
+                    target_x, target_y = self.target_selection_map[event.sym]
+                    
+                    # Execute the action through advance_step
+                    game.gamestate = advance_step(game.gamestate, (self.action_mode, target_x, target_y))
+                    
+                    # Exit selection mode
+                    self.action_mode = None
+                    
+                    # Check if encounter ended (creature defeated or converted)
+                    if game.gamestate.active_encounter is None:
+                        game.current_back_screen = game.map_view
+                elif event.sym == tcod.event.KeySym.ESCAPE:
+                    # Cancel target selection
+                    self.action_mode = None
+            else:
+                # Normal mode - handle action selection
+                if event.sym == tcod.event.KeySym.A:
+                    # Enter attack target selection mode
+                    self.action_mode = "attack"
+                elif event.sym == tcod.event.KeySym.C:
+                    # Enter convert target selection mode
+                    self.action_mode = "convert"
+                elif event.sym == tcod.event.KeySym.F:
+                    # Flee - return to map
+                    game.gamestate.active_encounter = None
+                    game.current_back_screen = game.map_view
 
     def render(self, console: tcod.console.Console, game: "game.Game") -> None:
         """Render the encounter screen to the console.
@@ -244,14 +278,25 @@ class EncounterScreen(Screen):
         for x in range(right_panel_x + 1, GRID_WIDTH):
             console.print(x, top_panel_height, "-", fg=(100, 100, 100))
 
+        # Get creature info if available
+        creature = None
+        if game.gamestate.active_encounter is not None:
+            creature = game.gamestate.active_encounter.creature
+
         # LEFT PANEL: Info panel
         console.print(2, 1, "BATTLE INFO", fg=(255, 255, 0))
-        console.print(2, 3, "Turn: 1", fg=(200, 200, 200))
-        console.print(2, 4, "Enemy: ???", fg=(200, 200, 200))
-        console.print(2, 5, "HP: 100/100", fg=(0, 255, 0))
+        
+        if creature:
+            console.print(2, 3, f"Enemy: {creature.name}", fg=(200, 200, 200))
+            health_color = (0, 255, 0) if creature.current_health > 30 else (255, 100, 100)
+            console.print(2, 4, f"HP: {creature.current_health}/{creature.max_health}", fg=health_color)
+            console.print(2, 5, f"Convert: {creature.current_convert}/100", fg=(150, 150, 255))
+        else:
+            console.print(2, 3, "Enemy: ???", fg=(200, 200, 200))
+            console.print(2, 4, "HP: 100/100", fg=(0, 255, 0))
 
-        # UPPER RIGHT: 9x3 grid with player
-        grid_width = 9
+        # UPPER RIGHT: 6x3 grid with player on left and creature on right
+        grid_width = 6
         grid_height = 3
         grid_start_x = right_panel_x + (right_panel_width - grid_width) // 2
         grid_start_y = 2
@@ -272,17 +317,45 @@ class EncounterScreen(Screen):
             grid_start_x + grid_width, grid_start_y + grid_height + 1, "+", fg=(100, 100, 100)
         )
 
-        # Draw player in the middle of the grid
-        player_x = grid_start_x + grid_width // 2
+        # Draw player on the left side (middle of left 3x3 area)
+        player_x = grid_start_x + 1  # Left half, centered
         player_y = grid_start_y + grid_height // 2 + 1
         console.print(player_x, player_y, "@", fg=(0, 255, 0))
+
+        # Draw creature on the right side (middle of right 3x3 area)
+        if creature:
+            creature_x = grid_start_x + 4  # Right half, centered
+            creature_y = grid_start_y + grid_height // 2 + 1
+            console.print(creature_x, creature_y, creature.symbol, fg=creature.color)
+
+        # If in target selection mode, highlight the right half (3x3 area)
+        if self.action_mode in ("attack", "convert"):
+            highlight_color = (255, 255, 100) if self.action_mode == "attack" else (150, 150, 255)
+            # Highlight the right half of the grid (3x3 area)
+            for dy in range(grid_height):
+                for dx in range(3, grid_width):
+                    x = grid_start_x + dx
+                    y = grid_start_y + dy + 1
+                    # Get current character and preserve it while changing background
+                    current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
+                    current_fg = tuple(console.fg[x, y])
+                    console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
 
         # BOTTOM RIGHT: Actions panel
         actions_start_y = top_panel_height + 2
         console.print(right_panel_x + 2, actions_start_y, "ACTIONS", fg=(255, 255, 0))
-        console.print(right_panel_x + 2, actions_start_y + 2, "[A] Attack", fg=(200, 200, 200))
-        console.print(right_panel_x + 2, actions_start_y + 3, "[D] Defend", fg=(200, 200, 200))
-        console.print(right_panel_x + 2, actions_start_y + 4, "[F] Flee", fg=(200, 200, 200))
+        
+        if self.action_mode in ("attack", "convert"):
+            # Show target selection instructions
+            action_name = "ATTACK" if self.action_mode == "attack" else "CONVERT"
+            console.print(right_panel_x + 2, actions_start_y + 2, f"Select {action_name} target:", fg=(255, 255, 100))
+            console.print(right_panel_x + 2, actions_start_y + 3, "Use numpad 1-9", fg=(200, 200, 200))
+            console.print(right_panel_x + 2, actions_start_y + 4, "ESC to cancel", fg=(150, 150, 150))
+        else:
+            # Show available actions
+            console.print(right_panel_x + 2, actions_start_y + 2, "[A] Attack", fg=(200, 200, 200))
+            console.print(right_panel_x + 2, actions_start_y + 3, "[C] Convert", fg=(200, 200, 200))
+            console.print(right_panel_x + 2, actions_start_y + 4, "[F] Flee", fg=(200, 200, 200))
 
 
 class MainMenu(Screen):
