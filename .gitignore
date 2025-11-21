@@ -141,3 +141,5 @@ dmypy.json
 .vs/py/FileContentIndex/8140ec6d-c22e-4b4b-b1db-6649e1b58d9b.vsidx
 .vs/py/FileContentIndex/658900a5-544f-438b-94a4-f38f5c279309.vsidx
 *.vsidx
+.vs/cursesgame/CopilotIndices/18.3.144.54792/CodeChunks.db-wal
+.vs/cursesgame/CopilotIndices/18.3.144.54792/SemanticSymbols.db-wal
