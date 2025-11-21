@@ -10,6 +10,9 @@ def advance_step(
 ) -> GameState:
     """Advance the game by one step based on the player action.
 
+    Important: all gameplay logic should flow through this function.
+    Non-gameplay logic such as UI state should be handled through screens.
+
     Args:
         gamestate: The current game state
         action: A tuple where the first element is the action type:
