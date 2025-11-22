@@ -12,6 +12,10 @@ from gameplay import advance_step
 if TYPE_CHECKING:
     import game
 
+# Constants for encounter grid
+ENCOUNTER_GRID_WIDTH = 3  # 3x3 grid for each side
+ENCOUNTER_GRID_HEIGHT = 3
+
 
 class Screen(ABC):
     """Base class for screens in the game."""
@@ -249,7 +253,7 @@ class EncounterScreen(Screen):
                 if event.sym in self.target_selection_map:
                     # Get the grid position
                     grid_x, grid_y = self.target_selection_map[event.sym]
-                    grid_index = grid_y * 3 + grid_x
+                    grid_index = grid_y * ENCOUNTER_GRID_WIDTH + grid_x
                     
                     # Update selection
                     if self.selection_mode == "selecting_ally":
@@ -425,35 +429,41 @@ class EncounterScreen(Screen):
             # Highlight enemy side for attack/convert
             highlight_color = (255, 255, 100) if self.action_mode == "attack" else (150, 150, 255)
             for dy in range(grid_height):
-                for dx in range(3, grid_width):
+                for dx in range(ENCOUNTER_GRID_WIDTH, grid_width):
                     x = grid_start_x + dx
                     y = grid_start_y + dy + 1
-                    # Get current character and preserve it while changing background
-                    current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
-                    current_fg = tuple(console.fg[x, y])
-                    console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
+                    # Bounds check before accessing console arrays
+                    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+                        # Get current character and preserve it while changing background
+                        current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
+                        current_fg = tuple(console.fg[x, y])
+                        console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
         elif self.selection_mode == "selecting_ally":
             # Highlight player side
             highlight_color = (100, 150, 255)
             for dy in range(grid_height):
-                for dx in range(3):
+                for dx in range(ENCOUNTER_GRID_WIDTH):
                     x = grid_start_x + dx
                     y = grid_start_y + dy + 1
-                    # Get current character and preserve it while changing background
-                    current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
-                    current_fg = tuple(console.fg[x, y])
-                    console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
+                    # Bounds check before accessing console arrays
+                    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+                        # Get current character and preserve it while changing background
+                        current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
+                        current_fg = tuple(console.fg[x, y])
+                        console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
         elif self.selection_mode == "selecting_enemy":
             # Highlight enemy side
             highlight_color = (150, 100, 255)
             for dy in range(grid_height):
-                for dx in range(3, grid_width):
+                for dx in range(ENCOUNTER_GRID_WIDTH, grid_width):
                     x = grid_start_x + dx
                     y = grid_start_y + dy + 1
-                    # Get current character and preserve it while changing background
-                    current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
-                    current_fg = tuple(console.fg[x, y])
-                    console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
+                    # Bounds check before accessing console arrays
+                    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+                        # Get current character and preserve it while changing background
+                        current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
+                        current_fg = tuple(console.fg[x, y])
+                        console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
 
         # BOTTOM RIGHT: Actions panel
         actions_start_y = top_panel_height + 2

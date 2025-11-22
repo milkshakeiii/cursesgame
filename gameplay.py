@@ -5,6 +5,21 @@ from typing import Optional
 from game_data import GRID_HEIGHT, GRID_WIDTH, Creature, Encounter, GameState, Player, Terrain
 
 
+def grid_coords_to_index(x: int, y: int) -> Optional[int]:
+    """Convert 2D grid coordinates (0-2, 0-2) to 1D index (0-8).
+    
+    Args:
+        x: Grid x coordinate (0-2)
+        y: Grid y coordinate (0-2)
+    
+    Returns:
+        1D index (0-8) or None if coordinates are out of bounds
+    """
+    if not (0 <= x <= 2 and 0 <= y <= 2):
+        return None
+    return y * 3 + x
+
+
 def advance_step(
     gamestate: GameState, action: Optional[tuple[str, ...]]
 ) -> GameState:
@@ -71,7 +86,11 @@ def advance_step(
     elif action_type == "attack" and gamestate.active_encounter is not None:
         # Attack action during encounter - target_x, target_y are grid coordinates (0-2, 0-2)
         target_x, target_y = action[1], action[2]
-        grid_index = target_y * 3 + target_x  # Convert 2D to 1D index
+        grid_index = grid_coords_to_index(target_x, target_y)
+        
+        # Validate grid index
+        if grid_index is None:
+            return gamestate
         
         # Get the target from enemy team
         target = gamestate.active_encounter.enemy_team[grid_index]
@@ -93,7 +112,11 @@ def advance_step(
     elif action_type == "convert" and gamestate.active_encounter is not None:
         # Convert action during encounter - target_x, target_y are grid coordinates (0-2, 0-2)
         target_x, target_y = action[1], action[2]
-        grid_index = target_y * 3 + target_x  # Convert 2D to 1D index
+        grid_index = grid_coords_to_index(target_x, target_y)
+        
+        # Validate grid index
+        if grid_index is None:
+            return gamestate
         
         # Get the target from enemy team
         target = gamestate.active_encounter.enemy_team[grid_index]
