@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import tcod
 
-from game_data import GRID_HEIGHT, GRID_WIDTH, Player
+from game_data import GRID_HEIGHT, GRID_WIDTH, Player, Creature
 from gameplay import advance_step
 
 if TYPE_CHECKING:
