@@ -127,20 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-.vs/py/FileContentIndex/fc411085-5f8b-47d7-ae19-0271090e3dc1.vsidx
-.vs/py/FileContentIndex/8b7954ab-2302-4f6c-8074-6c47c96154d9.vsidx
-.vs/py/FileContentIndex/86bfcf28-b0a2-4c0d-8e0c-74c12f6f2162.vsidx
-.vs/py/FileContentIndex/8140ec6d-c22e-4b4b-b1db-6649e1b58d9b.vsidx
-.vs/py/FileContentIndex/3019ca9b-59fc-4b93-8321-66abb82df0f1.vsidx
-.vs/py/CopilotIndices/17.14.670.39694/SemanticSymbols.db-wal
-.vs/py/CopilotIndices/17.14.670.39694/SemanticSymbols.db-shm
-.vs/py/CopilotIndices/17.14.670.39694/CodeChunks.db-wal
-.vs/py/CopilotIndices/17.14.670.39694/CodeChunks.db-shm
-.vs/py/FileContentIndex/8140ec6d-c22e-4b4b-b1db-6649e1b58d9b.vsidx
-.vs/py/FileContentIndex/12bc4821-adba-450e-9198-df03587f5a32.vsidx
-.vs/py/FileContentIndex/8140ec6d-c22e-4b4b-b1db-6649e1b58d9b.vsidx
-.vs/py/FileContentIndex/658900a5-544f-438b-94a4-f38f5c279309.vsidx
-*.vsidx
-.vs/cursesgame/CopilotIndices/18.3.144.54792/CodeChunks.db-wal
-.vs/cursesgame/CopilotIndices/18.3.144.54792/SemanticSymbols.db-wal
-.vs/slnx.sqlite
+
+# .vs folder
+.vs/
