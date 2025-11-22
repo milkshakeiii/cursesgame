@@ -20,6 +20,27 @@ def grid_coords_to_index(x: int, y: int) -> Optional[int]:
     return y * 3 + x
 
 
+def get_enemy_at_grid_position(encounter: Encounter, target_x: int, target_y: int) -> Optional[Creature]:
+    """Get the enemy creature at a grid position if it exists.
+    
+    Args:
+        encounter: The active encounter
+        target_x: Grid x coordinate (0-2)
+        target_y: Grid y coordinate (0-2)
+    
+    Returns:
+        The Creature at that position, or None if position is invalid or empty
+    """
+    grid_index = grid_coords_to_index(target_x, target_y)
+    if grid_index is None:
+        return None
+    
+    target = encounter.enemy_team[grid_index]
+    if target is not None and isinstance(target, Creature):
+        return target
+    return None
+
+
 def advance_step(
     gamestate: GameState, action: Optional[tuple[str, ...]]
 ) -> GameState:
@@ -86,19 +107,15 @@ def advance_step(
     elif action_type == "attack" and gamestate.active_encounter is not None:
         # Attack action during encounter - target_x, target_y are grid coordinates (0-2, 0-2)
         target_x, target_y = action[1], action[2]
-        grid_index = grid_coords_to_index(target_x, target_y)
-        
-        # Validate grid index
-        if grid_index is None:
-            return gamestate
         
         # Get the target from enemy team
-        target = gamestate.active_encounter.enemy_team[grid_index]
-        if target is not None and isinstance(target, Creature):
+        target = get_enemy_at_grid_position(gamestate.active_encounter, target_x, target_y)
+        if target is not None:
             target.current_health = max(0, target.current_health - 5)
             
             # Check if creature was defeated
             if target.current_health <= 0:
+                grid_index = grid_coords_to_index(target_x, target_y)
                 gamestate.active_encounter.enemy_team[grid_index] = None
                 
                 # Check if all enemies defeated
@@ -112,15 +129,10 @@ def advance_step(
     elif action_type == "convert" and gamestate.active_encounter is not None:
         # Convert action during encounter - target_x, target_y are grid coordinates (0-2, 0-2)
         target_x, target_y = action[1], action[2]
-        grid_index = grid_coords_to_index(target_x, target_y)
-        
-        # Validate grid index
-        if grid_index is None:
-            return gamestate
         
         # Get the target from enemy team
-        target = gamestate.active_encounter.enemy_team[grid_index]
-        if target is not None and isinstance(target, Creature):
+        target = get_enemy_at_grid_position(gamestate.active_encounter, target_x, target_y)
+        if target is not None:
             target.current_convert = min(100, target.current_convert + 5)
             
             # Check if creature was converted
@@ -128,6 +140,7 @@ def advance_step(
                 # Add creature to player's team
                 player.creatures.append(target)
                 # Remove from enemy team
+                grid_index = grid_coords_to_index(target_x, target_y)
                 gamestate.active_encounter.enemy_team[grid_index] = None
                 
                 # Check if all enemies defeated/converted

@@ -17,6 +17,19 @@ ENCOUNTER_GRID_WIDTH = 3  # 3x3 grid for each side
 ENCOUNTER_GRID_HEIGHT = 3
 
 
+def is_within_console_bounds(x: int, y: int) -> bool:
+    """Check if coordinates are within console bounds.
+    
+    Args:
+        x: X coordinate
+        y: Y coordinate
+    
+    Returns:
+        True if coordinates are within bounds, False otherwise
+    """
+    return 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT
+
+
 class Screen(ABC):
     """Base class for screens in the game."""
 
@@ -433,7 +446,7 @@ class EncounterScreen(Screen):
                     x = grid_start_x + dx
                     y = grid_start_y + dy + 1
                     # Bounds check before accessing console arrays
-                    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+                    if is_within_console_bounds(x, y):
                         # Get current character and preserve it while changing background
                         current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
                         current_fg = tuple(console.fg[x, y])
@@ -446,7 +459,7 @@ class EncounterScreen(Screen):
                     x = grid_start_x + dx
                     y = grid_start_y + dy + 1
                     # Bounds check before accessing console arrays
-                    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+                    if is_within_console_bounds(x, y):
                         # Get current character and preserve it while changing background
                         current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
                         current_fg = tuple(console.fg[x, y])
@@ -459,7 +472,7 @@ class EncounterScreen(Screen):
                     x = grid_start_x + dx
                     y = grid_start_y + dy + 1
                     # Bounds check before accessing console arrays
-                    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
+                    if is_within_console_bounds(x, y):
                         # Get current character and preserve it while changing background
                         current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
                         current_fg = tuple(console.fg[x, y])

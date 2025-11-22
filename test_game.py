@@ -54,6 +54,18 @@ def create_test_creature(
     )
 
 
+def setup_enemy_at_position(encounter: Encounter, creature: Creature, position: int = 4):
+    """Helper to set up an enemy in an encounter at a specific grid position.
+    
+    Args:
+        encounter: The encounter to set up
+        creature: The creature to place
+        position: Grid position 0-8 (default 4 = middle)
+    """
+    encounter.enemy_team = [None] * 9
+    encounter.enemy_team[position] = creature
+
+
 class TestPlayer:
     """Tests for the Player class."""
 
@@ -772,9 +784,7 @@ class TestAttackAction:
         player = Player(10, 10)
         creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
-        # Initialize enemy team with creature in middle position
-        encounter.enemy_team = [None] * 9
-        encounter.enemy_team[4] = creature  # Middle position (1, 1)
+        setup_enemy_at_position(encounter, creature)  # Middle position
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Perform attack on middle position (1, 1)
@@ -787,9 +797,7 @@ class TestAttackAction:
         player = Player(10, 10)
         creature = create_test_creature(health=5)
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
-        # Initialize enemy team with creature in middle position
-        encounter.enemy_team = [None] * 9
-        encounter.enemy_team[4] = creature  # Middle position (1, 1)
+        setup_enemy_at_position(encounter, creature)  # Middle position
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Perform attack that should defeat creature on middle position (1, 1)
@@ -808,9 +816,7 @@ class TestConvertAction:
         player = Player(10, 10)
         creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
-        # Initialize enemy team with creature in middle position
-        encounter.enemy_team = [None] * 9
-        encounter.enemy_team[4] = creature  # Middle position (1, 1)
+        setup_enemy_at_position(encounter, creature)  # Middle position
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Perform convert on middle position (1, 1)
@@ -823,9 +829,7 @@ class TestConvertAction:
         player = Player(10, 10)
         creature = create_test_creature(convert=95)
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
-        # Initialize enemy team with creature in middle position
-        encounter.enemy_team = [None] * 9
-        encounter.enemy_team[4] = creature  # Middle position (1, 1)
+        setup_enemy_at_position(encounter, creature)  # Middle position
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Perform convert that should complete conversion on middle position (1, 1)
@@ -841,9 +845,7 @@ class TestConvertAction:
         player = Player(10, 10)
         creature = create_test_creature(convert=98)
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
-        # Initialize enemy team with creature in middle position
-        encounter.enemy_team = [None] * 9
-        encounter.enemy_team[4] = creature  # Middle position (1, 1)
+        setup_enemy_at_position(encounter, creature)  # Middle position
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Perform convert on middle position (1, 1)
@@ -912,8 +914,7 @@ class TestEncounterScreenActions:
         creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
         # Initialize enemy team with creature in middle position
-        encounter.enemy_team = [None] * 9
-        encounter.enemy_team[4] = creature  # Middle position (1, 1)
+        setup_enemy_at_position(encounter, creature)  # Middle position
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Enter attack mode
@@ -936,9 +937,7 @@ class TestEncounterScreenActions:
         player = Player(10, 10)
         creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
-        # Initialize enemy team with creature in middle position
-        encounter.enemy_team = [None] * 9
-        encounter.enemy_team[4] = creature  # Middle position (1, 1)
+        setup_enemy_at_position(encounter, creature)  # Middle position
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Enter convert mode
@@ -1030,8 +1029,7 @@ class TestEncounterGridSystem:
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
         
         # Place only one enemy
-        encounter.enemy_team = [None] * 9
-        encounter.enemy_team[4] = creature
+        setup_enemy_at_position(encounter, creature)  # Middle position
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Attack to defeat
