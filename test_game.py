@@ -19,7 +19,7 @@ from game_data import (
     Terrain,
 )
 from gameplay import advance_step, generate_map
-from screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView
+from screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, EncounterMode
 
 
 def get_player(gamestate: GameState) -> Player:
@@ -662,6 +662,13 @@ class TestEncounterScreen:
         screen = EncounterScreen()
         game = Game()
         console = Mock()
+        
+        # Set up an active encounter so the render method can work
+        player = Player(10, 10)
+        creature = create_test_creature()
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        setup_enemy_at_position(encounter, creature)
+        game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Should not raise an exception
         screen.render(console, game)
@@ -858,9 +865,9 @@ class TestEncounterScreenActions:
     """Tests for encounter screen action handling."""
 
     def test_encounter_screen_has_action_mode(self):
-        """Test that EncounterScreen initializes with action_mode."""
+        """Test that EncounterScreen initializes with mode."""
         screen = EncounterScreen()
-        assert screen.action_mode is None
+        assert screen.mode == EncounterMode.NORMAL
         assert len(screen.target_selection_map) == 9
 
     def test_encounter_screen_enter_attack_mode(self):
@@ -874,7 +881,7 @@ class TestEncounterScreenActions:
         )
         screen.handle_specific_event(event, game)
 
-        assert screen.action_mode == "attack"
+        assert screen.mode == EncounterMode.ATTACK
 
     def test_encounter_screen_enter_convert_mode(self):
         """Test that pressing C enters convert mode."""
@@ -887,7 +894,7 @@ class TestEncounterScreenActions:
         )
         screen.handle_specific_event(event, game)
 
-        assert screen.action_mode == "convert"
+        assert screen.mode == EncounterMode.CONVERT
 
     def test_encounter_screen_cancel_action_with_escape(self):
         """Test that pressing ESC cancels action selection."""
@@ -895,7 +902,7 @@ class TestEncounterScreenActions:
         game = Game()
 
         # Enter attack mode
-        screen.action_mode = "attack"
+        screen.mode = EncounterMode.ATTACK
 
         # Press ESC
         event = tcod.event.KeyDown(
@@ -903,7 +910,7 @@ class TestEncounterScreenActions:
         )
         screen.handle_specific_event(event, game)
 
-        assert screen.action_mode is None
+        assert screen.mode == EncounterMode.NORMAL
 
     def test_encounter_screen_attack_with_numpad(self):
         """Test that numpad selection performs attack."""
@@ -918,7 +925,7 @@ class TestEncounterScreenActions:
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Enter attack mode
-        screen.action_mode = "attack"
+        screen.mode = EncounterMode.ATTACK
 
         # Select target with numpad 5 (center)
         event = tcod.event.KeyDown(
@@ -926,7 +933,7 @@ class TestEncounterScreenActions:
         )
         screen.handle_specific_event(event, game)
 
-        assert screen.action_mode is None  # Should exit action mode
+        assert screen.mode == EncounterMode.NORMAL  # Should exit action mode
         assert creature.current_health == 95  # Should have dealt 5 damage
 
     def test_encounter_screen_convert_with_numpad(self):
@@ -941,7 +948,7 @@ class TestEncounterScreenActions:
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Enter convert mode
-        screen.action_mode = "convert"
+        screen.mode = EncounterMode.CONVERT
 
         # Select target with numpad 5 (center)
         event = tcod.event.KeyDown(
@@ -949,7 +956,7 @@ class TestEncounterScreenActions:
         )
         screen.handle_specific_event(event, game)
 
-        assert screen.action_mode is None  # Should exit action mode
+        assert screen.mode == EncounterMode.NORMAL  # Should exit action mode
         assert creature.current_convert == 5  # Should have increased convert
 
 
@@ -1047,7 +1054,7 @@ class TestEncounterSelection:
         screen = EncounterScreen()
         assert screen.selected_side in ["player", "enemy"]
         assert 0 <= screen.selected_index < 9
-        assert screen.selection_mode is None
+        assert screen.mode == EncounterMode.NORMAL
 
     def test_encounter_screen_enter_ally_selection_mode(self):
         """Test that pressing Q enters ally selection mode."""
@@ -1060,7 +1067,7 @@ class TestEncounterSelection:
         )
         screen.handle_specific_event(event, game)
 
-        assert screen.selection_mode == "selecting_ally"
+        assert screen.mode == EncounterMode.SELECTING_ALLY
 
     def test_encounter_screen_enter_enemy_selection_mode(self):
         """Test that pressing E enters enemy selection mode."""
@@ -1073,7 +1080,7 @@ class TestEncounterSelection:
         )
         screen.handle_specific_event(event, game)
 
-        assert screen.selection_mode == "selecting_enemy"
+        assert screen.mode == EncounterMode.SELECTING_ENEMY
 
     def test_selecting_ally_with_numpad(self):
         """Test selecting an ally with numpad."""
@@ -1081,7 +1088,7 @@ class TestEncounterSelection:
         game = Game()
 
         # Enter ally selection mode
-        screen.selection_mode = "selecting_ally"
+        screen.mode = EncounterMode.SELECTING_ALLY
 
         # Press numpad 7 (top-left)
         event = tcod.event.KeyDown(
@@ -1091,7 +1098,7 @@ class TestEncounterSelection:
 
         assert screen.selected_side == "player"
         assert screen.selected_index == 0  # Top-left
-        assert screen.selection_mode is None  # Exit selection mode
+        assert screen.mode == EncounterMode.NORMAL  # Exit selection mode
 
     def test_selecting_enemy_with_numpad(self):
         """Test selecting an enemy with numpad."""
@@ -1099,7 +1106,7 @@ class TestEncounterSelection:
         game = Game()
 
         # Enter enemy selection mode
-        screen.selection_mode = "selecting_enemy"
+        screen.mode = EncounterMode.SELECTING_ENEMY
 
         # Press numpad 3 (bottom-right)
         event = tcod.event.KeyDown(
@@ -1109,7 +1116,7 @@ class TestEncounterSelection:
 
         assert screen.selected_side == "enemy"
         assert screen.selected_index == 8  # Bottom-right
-        assert screen.selection_mode is None  # Exit selection mode
+        assert screen.mode == EncounterMode.NORMAL  # Exit selection mode
 
     def test_cancel_selection_with_escape(self):
         """Test that ESC cancels selection mode."""
@@ -1117,7 +1124,7 @@ class TestEncounterSelection:
         game = Game()
 
         # Enter ally selection mode
-        screen.selection_mode = "selecting_ally"
+        screen.mode = EncounterMode.SELECTING_ALLY
 
         # Press ESC
         event = tcod.event.KeyDown(
@@ -1125,4 +1132,4 @@ class TestEncounterSelection:
         )
         screen.handle_specific_event(event, game)
 
-        assert screen.selection_mode is None
+        assert screen.mode == EncounterMode.NORMAL

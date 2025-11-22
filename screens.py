@@ -2,7 +2,8 @@
 """Screen classes for the game."""
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Optional
+from enum import Enum
+from typing import TYPE_CHECKING, Optional, Union
 
 import tcod
 
@@ -15,6 +16,15 @@ if TYPE_CHECKING:
 # Constants for encounter grid
 ENCOUNTER_GRID_WIDTH = 3  # 3x3 grid for each side
 ENCOUNTER_GRID_HEIGHT = 3
+
+
+class EncounterMode(Enum):
+    """Enum for encounter screen modes."""
+    NORMAL = "normal"
+    ATTACK = "attack"
+    CONVERT = "convert"
+    SELECTING_ALLY = "selecting_ally"
+    SELECTING_ENEMY = "selecting_enemy"
 
 
 def is_within_console_bounds(x: int, y: int) -> bool:
@@ -215,8 +225,7 @@ class EncounterScreen(Screen):
 
     def __init__(self):
         """Initialize the EncounterScreen."""
-        self.action_mode = None  # "attack" or "convert" when selecting target
-        self.selection_mode = None  # "selecting_ally", "selecting_enemy", or None
+        self.mode = EncounterMode.NORMAL  # Current interaction mode
         self.selected_side = "enemy"  # "player" or "enemy"
         self.selected_index = 4  # Index 0-8 in the grid (default to middle)
         self.target_selection_map = {
@@ -244,94 +253,84 @@ class EncounterScreen(Screen):
         """
         if isinstance(event, tcod.event.KeyDown):
             # If in target selection mode (for attack/convert), handle numpad input
-            if self.action_mode in ("attack", "convert"):
+            if self.mode in (EncounterMode.ATTACK, EncounterMode.CONVERT):
                 if event.sym in self.target_selection_map:
                     # Get the target coordinates
                     target_x, target_y = self.target_selection_map[event.sym]
                     
                     # Execute the action through advance_step
-                    game.gamestate = advance_step(game.gamestate, (self.action_mode, target_x, target_y))
+                    action_type = "attack" if self.mode == EncounterMode.ATTACK else "convert"
+                    game.gamestate = advance_step(game.gamestate, (action_type, target_x, target_y))
                     
                     # Exit selection mode
-                    self.action_mode = None
+                    self.mode = EncounterMode.NORMAL
                     
                     # Check if encounter ended (all creatures defeated or converted)
                     if game.gamestate.active_encounter is None:
                         game.current_back_screen = game.map_view
                 elif event.sym == tcod.event.KeySym.ESCAPE:
                     # Cancel target selection
-                    self.action_mode = None
+                    self.mode = EncounterMode.NORMAL
             # If in ally/enemy selection mode, handle numpad input
-            elif self.selection_mode in ("selecting_ally", "selecting_enemy"):
+            elif self.mode in (EncounterMode.SELECTING_ALLY, EncounterMode.SELECTING_ENEMY):
                 if event.sym in self.target_selection_map:
                     # Get the grid position
                     grid_x, grid_y = self.target_selection_map[event.sym]
                     grid_index = grid_y * ENCOUNTER_GRID_WIDTH + grid_x
                     
                     # Update selection
-                    if self.selection_mode == "selecting_ally":
+                    if self.mode == EncounterMode.SELECTING_ALLY:
                         self.selected_side = "player"
                     else:
                         self.selected_side = "enemy"
                     self.selected_index = grid_index
                     
                     # Exit selection mode
-                    self.selection_mode = None
+                    self.mode = EncounterMode.NORMAL
                 elif event.sym == tcod.event.KeySym.ESCAPE:
                     # Cancel selection
-                    self.selection_mode = None
+                    self.mode = EncounterMode.NORMAL
             else:
                 # Normal mode - handle action/selection keys
                 if event.sym == tcod.event.KeySym.A:
                     # Enter attack target selection mode (only enemies)
-                    self.action_mode = "attack"
+                    self.mode = EncounterMode.ATTACK
                 elif event.sym == tcod.event.KeySym.C:
                     # Enter convert target selection mode (only enemies)
-                    self.action_mode = "convert"
+                    self.mode = EncounterMode.CONVERT
                 elif event.sym == tcod.event.KeySym.Q:
                     # Enter ally selection mode
-                    self.selection_mode = "selecting_ally"
+                    self.mode = EncounterMode.SELECTING_ALLY
                 elif event.sym == tcod.event.KeySym.E:
                     # Enter enemy selection mode
-                    self.selection_mode = "selecting_enemy"
+                    self.mode = EncounterMode.SELECTING_ENEMY
                 elif event.sym == tcod.event.KeySym.F:
                     # Flee - return to map
                     game.gamestate.active_encounter = None
                     game.current_back_screen = game.map_view
 
-    def _get_selected_entity_info(self, game: "game.Game") -> tuple[Optional[Creature], Optional[str]]:
-        """Get information about the currently selected entity.
+    def _get_selected_entity(self, game: "game.Game") -> Optional[Union[Creature, Player]]:
+        """Get the currently selected entity.
         
         Args:
             game: The game instance
         
         Returns:
-            Tuple of (selected_creature, selected_name) where:
-            - selected_creature is a Creature if a creature is selected, None otherwise
-            - selected_name is the name of the selected entity (creature/player name or None)
+            The selected Creature or Player, or None if no entity is selected
         """
-        selected_creature = None
-        selected_name = None
+        if game.gamestate.active_encounter is None:
+            return None
+            
+        if self.selected_side == "player":
+            team = game.gamestate.active_encounter.player_team
+            if team and self.selected_index < len(team):
+                return team[self.selected_index]
+        else:  # enemy side
+            team = game.gamestate.active_encounter.enemy_team
+            if team and self.selected_index < len(team):
+                return team[self.selected_index]
         
-        if game.gamestate.active_encounter is not None:
-            if self.selected_side == "player":
-                team = game.gamestate.active_encounter.player_team
-                if team and self.selected_index < len(team):
-                    entity = team[self.selected_index]
-                    if isinstance(entity, Creature):
-                        selected_creature = entity
-                        selected_name = entity.name
-                    elif isinstance(entity, Player):
-                        selected_name = "Player"
-            else:  # enemy side
-                team = game.gamestate.active_encounter.enemy_team
-                if team and self.selected_index < len(team):
-                    entity = team[self.selected_index]
-                    if isinstance(entity, Creature):
-                        selected_creature = entity
-                        selected_name = entity.name
-        
-        return selected_creature, selected_name
+        return None
 
     def _render_dividers(self, console: tcod.console.Console, info_panel_width: int, 
                         right_panel_x: int, top_panel_height: int) -> None:
@@ -352,34 +351,26 @@ class EncounterScreen(Screen):
             console.print(x, top_panel_height, "-", fg=(100, 100, 100))
 
     def _render_info_panel(self, console: tcod.console.Console, game: "game.Game", 
-                          selected_creature: Optional[Creature], selected_name: Optional[str]) -> None:
+                          selected_entity: Optional[Union[Creature, Player]]) -> None:
         """Render the information panel showing selected entity stats.
         
         Args:
             console: The console to render to
             game: The game instance
-            selected_creature: The selected creature, if any
-            selected_name: The name of the selected entity, if any
+            selected_entity: The selected Creature or Player, or None
         """
         console.print(2, 1, "BATTLE INFO", fg=(255, 255, 0))
         
-        if selected_creature:
+        if isinstance(selected_entity, Creature):
             side_label = "Ally" if self.selected_side == "player" else "Enemy"
-            console.print(2, 3, f"{side_label}: {selected_name}", fg=(200, 200, 200))
-            health_color = (0, 255, 0) if selected_creature.current_health > 30 else (255, 100, 100)
-            console.print(2, 4, f"HP: {selected_creature.current_health}/{selected_creature.max_health}", fg=health_color)
-            console.print(2, 5, f"Convert: {selected_creature.current_convert}/100", fg=(150, 150, 255))
-        elif selected_name == "Player":
-            # Show player info
-            player = None
-            for placeable in game.gamestate.placeables or []:
-                if isinstance(placeable, Player):
-                    player = placeable
-                    break
-            if player:
-                console.print(2, 3, f"Player", fg=(200, 200, 200))
-                health_color = (0, 255, 0) if player.current_health > 30 else (255, 100, 100)
-                console.print(2, 4, f"HP: {player.current_health}/{player.max_health}", fg=health_color)
+            console.print(2, 3, f"{side_label}: {selected_entity.name}", fg=(200, 200, 200))
+            health_color = (0, 255, 0) if selected_entity.current_health > 30 else (255, 100, 100)
+            console.print(2, 4, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", fg=health_color)
+            console.print(2, 5, f"Convert: {selected_entity.current_convert}/100", fg=(150, 150, 255))
+        elif isinstance(selected_entity, Player):
+            console.print(2, 3, f"Player", fg=(200, 200, 200))
+            health_color = (0, 255, 0) if selected_entity.current_health > 30 else (255, 100, 100)
+            console.print(2, 4, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", fg=health_color)
         else:
             console.print(2, 3, "No selection", fg=(200, 200, 200))
 
@@ -459,17 +450,17 @@ class EncounterScreen(Screen):
             grid_width: Width of the battle grid
             grid_height: Height of the battle grid
         """
-        if self.action_mode in ("attack", "convert"):
+        if self.mode in (EncounterMode.ATTACK, EncounterMode.CONVERT):
             # Highlight enemy side for attack/convert
-            highlight_color = (255, 255, 100) if self.action_mode == "attack" else (150, 150, 255)
+            highlight_color = (255, 255, 100) if self.mode == EncounterMode.ATTACK else (150, 150, 255)
             self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_height,
                                        ENCOUNTER_GRID_WIDTH, grid_width, highlight_color)
-        elif self.selection_mode == "selecting_ally":
+        elif self.mode == EncounterMode.SELECTING_ALLY:
             # Highlight player side
             highlight_color = (100, 150, 255)
             self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_height,
                                        0, ENCOUNTER_GRID_WIDTH, highlight_color)
-        elif self.selection_mode == "selecting_enemy":
+        elif self.mode == EncounterMode.SELECTING_ENEMY:
             # Highlight enemy side
             highlight_color = (150, 100, 255)
             self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_height,
@@ -511,15 +502,15 @@ class EncounterScreen(Screen):
         """
         console.print(right_panel_x + 2, actions_start_y, "ACTIONS", fg=(255, 255, 0))
         
-        if self.action_mode in ("attack", "convert"):
+        if self.mode in (EncounterMode.ATTACK, EncounterMode.CONVERT):
             # Show target selection instructions
-            action_name = "ATTACK" if self.action_mode == "attack" else "CONVERT"
+            action_name = "ATTACK" if self.mode == EncounterMode.ATTACK else "CONVERT"
             console.print(right_panel_x + 2, actions_start_y + 2, f"Select {action_name} target:", fg=(255, 255, 100))
             console.print(right_panel_x + 2, actions_start_y + 3, "Use numpad 1-9", fg=(200, 200, 200))
             console.print(right_panel_x + 2, actions_start_y + 4, "ESC to cancel", fg=(150, 150, 150))
-        elif self.selection_mode in ("selecting_ally", "selecting_enemy"):
+        elif self.mode in (EncounterMode.SELECTING_ALLY, EncounterMode.SELECTING_ENEMY):
             # Show selection instructions
-            side_name = "ALLY" if self.selection_mode == "selecting_ally" else "ENEMY"
+            side_name = "ALLY" if self.mode == EncounterMode.SELECTING_ALLY else "ENEMY"
             console.print(right_panel_x + 2, actions_start_y + 2, f"Select {side_name}:", fg=(255, 255, 100))
             console.print(right_panel_x + 2, actions_start_y + 3, "Use numpad 1-9", fg=(200, 200, 200))
             console.print(right_panel_x + 2, actions_start_y + 4, "ESC to cancel", fg=(150, 150, 150))
@@ -538,6 +529,10 @@ class EncounterScreen(Screen):
             console: The console to render to
             game: The game instance
         """
+        # Sanity check - we should never be rendering this screen without an active encounter
+        assert game.gamestate.active_encounter is not None, \
+            "EncounterScreen.render called without active encounter"
+        
         console.clear()
 
         # Calculate layout dimensions
@@ -549,11 +544,11 @@ class EncounterScreen(Screen):
         # Render dividers
         self._render_dividers(console, info_panel_width, right_panel_x, top_panel_height)
 
-        # Get selected entity information
-        selected_creature, selected_name = self._get_selected_entity_info(game)
+        # Get selected entity
+        selected_entity = self._get_selected_entity(game)
 
         # Render info panel
-        self._render_info_panel(console, game, selected_creature, selected_name)
+        self._render_info_panel(console, game, selected_entity)
 
         # Calculate battle grid dimensions
         grid_width = 6
@@ -565,12 +560,11 @@ class EncounterScreen(Screen):
         self._render_battle_grid_border(console, grid_start_x, grid_start_y, grid_width, grid_height)
 
         # Render entities from both teams
-        if game.gamestate.active_encounter is not None:
-            player_team = game.gamestate.active_encounter.player_team
-            enemy_team = game.gamestate.active_encounter.enemy_team
-            
-            self._render_team_entities(console, player_team, grid_start_x, grid_start_y, 0, True)
-            self._render_team_entities(console, enemy_team, grid_start_x, grid_start_y, 3, False)
+        player_team = game.gamestate.active_encounter.player_team
+        enemy_team = game.gamestate.active_encounter.enemy_team
+        
+        self._render_team_entities(console, player_team, grid_start_x, grid_start_y, 0, True)
+        self._render_team_entities(console, enemy_team, grid_start_x, grid_start_y, 3, False)
 
         # Apply highlighting based on current mode
         self._apply_grid_highlighting(console, grid_start_x, grid_start_y, grid_width, grid_height)
