@@ -462,21 +462,21 @@ class EncounterScreen(Screen):
         if self.action_mode in ("attack", "convert"):
             # Highlight enemy side for attack/convert
             highlight_color = (255, 255, 100) if self.action_mode == "attack" else (150, 150, 255)
-            self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_width, grid_height,
+            self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_height,
                                        ENCOUNTER_GRID_WIDTH, grid_width, highlight_color)
         elif self.selection_mode == "selecting_ally":
             # Highlight player side
             highlight_color = (100, 150, 255)
-            self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_width, grid_height,
+            self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_height,
                                        0, ENCOUNTER_GRID_WIDTH, highlight_color)
         elif self.selection_mode == "selecting_enemy":
             # Highlight enemy side
             highlight_color = (150, 100, 255)
-            self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_width, grid_height,
+            self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_height,
                                        ENCOUNTER_GRID_WIDTH, grid_width, highlight_color)
 
     def _highlight_grid_region(self, console: tcod.console.Console, grid_start_x: int, 
-                               grid_start_y: int, grid_width: int, grid_height: int,
+                               grid_start_y: int, grid_height: int,
                                dx_start: int, dx_end: int, highlight_color: tuple[int, int, int]) -> None:
         """Apply highlighting to a specific region of the battle grid.
         
@@ -484,7 +484,6 @@ class EncounterScreen(Screen):
             console: The console to render to
             grid_start_x: X position where grid starts
             grid_start_y: Y position where grid starts
-            grid_width: Width of the battle grid (unused but kept for consistency)
             grid_height: Height of the battle grid
             dx_start: Starting X offset for the region to highlight
             dx_end: Ending X offset for the region to highlight
