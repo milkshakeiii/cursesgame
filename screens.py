@@ -2,7 +2,7 @@
 """Screen classes for the game."""
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import tcod
 
@@ -299,34 +299,20 @@ class EncounterScreen(Screen):
                     game.gamestate.active_encounter = None
                     game.current_back_screen = game.map_view
 
-    def render(self, console: tcod.console.Console, game: "game.Game") -> None:
-        """Render the encounter screen to the console.
-
+    def _get_selected_entity_info(self, game: "game.Game") -> tuple[Optional[Creature], Optional[str]]:
+        """Get information about the currently selected entity.
+        
         Args:
-            console: The console to render to
             game: The game instance
+        
+        Returns:
+            Tuple of (selected_creature, selected_name) where:
+            - selected_creature is a Creature if a creature is selected, None otherwise
+            - selected_name is the name of the selected entity (creature/player name or None)
         """
-        console.clear()
-
-        # Calculate layout dimensions
-        # Left half is the info panel
-        info_panel_width = GRID_WIDTH // 2
-        # Right half is split into top and bottom
-        right_panel_x = info_panel_width
-        right_panel_width = GRID_WIDTH - info_panel_width
-        top_panel_height = GRID_HEIGHT // 2
-
-        # Draw vertical divider between left and right
-        for y in range(GRID_HEIGHT):
-            console.print(info_panel_width, y, "|", fg=(100, 100, 100))
-
-        # Draw horizontal divider in right panel
-        for x in range(right_panel_x + 1, GRID_WIDTH):
-            console.print(x, top_panel_height, "-", fg=(100, 100, 100))
-
-        # Get selected creature info for info panel
         selected_creature = None
         selected_name = None
+        
         if game.gamestate.active_encounter is not None:
             if self.selected_side == "player":
                 team = game.gamestate.active_encounter.player_team
@@ -344,8 +330,37 @@ class EncounterScreen(Screen):
                     if isinstance(entity, Creature):
                         selected_creature = entity
                         selected_name = entity.name
+        
+        return selected_creature, selected_name
 
-        # LEFT PANEL: Info panel - show selected creature info
+    def _render_dividers(self, console: tcod.console.Console, info_panel_width: int, 
+                        right_panel_x: int, top_panel_height: int) -> None:
+        """Render the divider lines separating panels.
+        
+        Args:
+            console: The console to render to
+            info_panel_width: X position of the vertical divider
+            right_panel_x: X position where right panel starts
+            top_panel_height: Y position of the horizontal divider
+        """
+        # Draw vertical divider between left and right
+        for y in range(GRID_HEIGHT):
+            console.print(info_panel_width, y, "|", fg=(100, 100, 100))
+
+        # Draw horizontal divider in right panel
+        for x in range(right_panel_x + 1, GRID_WIDTH):
+            console.print(x, top_panel_height, "-", fg=(100, 100, 100))
+
+    def _render_info_panel(self, console: tcod.console.Console, game: "game.Game", 
+                          selected_creature: Optional[Creature], selected_name: Optional[str]) -> None:
+        """Render the information panel showing selected entity stats.
+        
+        Args:
+            console: The console to render to
+            game: The game instance
+            selected_creature: The selected creature, if any
+            selected_name: The name of the selected entity, if any
+        """
         console.print(2, 1, "BATTLE INFO", fg=(255, 255, 0))
         
         if selected_creature:
@@ -368,12 +383,17 @@ class EncounterScreen(Screen):
         else:
             console.print(2, 3, "No selection", fg=(200, 200, 200))
 
-        # UPPER RIGHT: 6x3 grid with player team on left and enemy team on right
-        grid_width = 6
-        grid_height = 3
-        grid_start_x = right_panel_x + (right_panel_width - grid_width) // 2
-        grid_start_y = 2
-
+    def _render_battle_grid_border(self, console: tcod.console.Console, grid_start_x: int, 
+                                   grid_start_y: int, grid_width: int, grid_height: int) -> None:
+        """Render the border and corners of the battle grid.
+        
+        Args:
+            console: The console to render to
+            grid_start_x: X position where grid starts
+            grid_start_y: Y position where grid starts
+            grid_width: Width of the battle grid
+            grid_height: Height of the battle grid
+        """
         # Draw grid border
         for x in range(grid_width):
             console.print(grid_start_x + x, grid_start_y, "-", fg=(100, 100, 100))
@@ -386,100 +406,110 @@ class EncounterScreen(Screen):
         console.print(grid_start_x - 1, grid_start_y, "+", fg=(100, 100, 100))
         console.print(grid_start_x + grid_width, grid_start_y, "+", fg=(100, 100, 100))
         console.print(grid_start_x - 1, grid_start_y + grid_height + 1, "+", fg=(100, 100, 100))
-        console.print(
-            grid_start_x + grid_width, grid_start_y + grid_height + 1, "+", fg=(100, 100, 100)
-        )
+        console.print(grid_start_x + grid_width, grid_start_y + grid_height + 1, "+", fg=(100, 100, 100))
 
-        # Draw entities from teams
-        if game.gamestate.active_encounter is not None:
-            # Draw player team (left 3x3)
-            player_team = game.gamestate.active_encounter.player_team
-            if player_team:
-                for i in range(9):
-                    grid_x = i % 3
-                    grid_y = i // 3
-                    screen_x = grid_start_x + grid_x
-                    screen_y = grid_start_y + 1 + grid_y
-                    
-                    entity = player_team[i]
-                    if entity:
-                        # Determine symbol and color
-                        if isinstance(entity, Player):
-                            symbol = "@"
-                            color = (0, 255, 0)
-                        else:
-                            symbol = entity.symbol
-                            color = entity.color
-                        
-                        # Check if this is the selected entity
-                        is_selected = (self.selected_side == "player" and self.selected_index == i)
-                        bg_color = (100, 100, 50) if is_selected else (0, 0, 0)
-                        
-                        console.print(screen_x, screen_y, symbol, fg=color, bg=bg_color)
+    def _render_team_entities(self, console: tcod.console.Console, team: list, 
+                             grid_start_x: int, grid_start_y: int, x_offset: int, 
+                             is_player_team: bool) -> None:
+        """Render entities from a team on the battle grid.
+        
+        Args:
+            console: The console to render to
+            team: List of entities (Player or Creature) to render
+            grid_start_x: X position where grid starts
+            grid_start_y: Y position where grid starts
+            x_offset: Horizontal offset for positioning (0 for player team, 3 for enemy team)
+            is_player_team: True if rendering player team, False for enemy team
+        """
+        if not team:
+            return
+            
+        for i in range(9):
+            grid_x = i % 3
+            grid_y = i // 3
+            screen_x = grid_start_x + x_offset + grid_x
+            screen_y = grid_start_y + 1 + grid_y
+            
+            entity = team[i]
+            if entity:
+                # Determine symbol and color
+                if isinstance(entity, Player):
+                    symbol = "@"
+                    color = (0, 255, 0)
+                else:
+                    symbol = entity.symbol
+                    color = entity.color
+                
+                # Check if this is the selected entity
+                side_matches = (is_player_team and self.selected_side == "player") or \
+                              (not is_player_team and self.selected_side == "enemy")
+                is_selected = side_matches and self.selected_index == i
+                bg_color = (100, 100, 50) if is_selected else (0, 0, 0)
+                
+                console.print(screen_x, screen_y, symbol, fg=color, bg=bg_color)
 
-            # Draw enemy team (right 3x3)
-            enemy_team = game.gamestate.active_encounter.enemy_team
-            if enemy_team:
-                for i in range(9):
-                    grid_x = i % 3
-                    grid_y = i // 3
-                    screen_x = grid_start_x + 3 + grid_x
-                    screen_y = grid_start_y + 1 + grid_y
-                    
-                    entity = enemy_team[i]
-                    if entity:
-                        symbol = entity.symbol
-                        color = entity.color
-                        
-                        # Check if this is the selected entity
-                        is_selected = (self.selected_side == "enemy" and self.selected_index == i)
-                        bg_color = (100, 100, 50) if is_selected else (0, 0, 0)
-                        
-                        console.print(screen_x, screen_y, symbol, fg=color, bg=bg_color)
-
-        # Highlight appropriate side based on mode
+    def _apply_grid_highlighting(self, console: tcod.console.Console, grid_start_x: int, 
+                                 grid_start_y: int, grid_width: int, grid_height: int) -> None:
+        """Apply highlighting to the battle grid based on current mode.
+        
+        Args:
+            console: The console to render to
+            grid_start_x: X position where grid starts
+            grid_start_y: Y position where grid starts
+            grid_width: Width of the battle grid
+            grid_height: Height of the battle grid
+        """
         if self.action_mode in ("attack", "convert"):
             # Highlight enemy side for attack/convert
             highlight_color = (255, 255, 100) if self.action_mode == "attack" else (150, 150, 255)
-            for dy in range(grid_height):
-                for dx in range(ENCOUNTER_GRID_WIDTH, grid_width):
-                    x = grid_start_x + dx
-                    y = grid_start_y + dy + 1
-                    # Bounds check before accessing console arrays
-                    if is_within_console_bounds(x, y):
-                        # Get current character and preserve it while changing background
-                        current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
-                        current_fg = tuple(console.fg[x, y])
-                        console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
+            self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_width, grid_height,
+                                       ENCOUNTER_GRID_WIDTH, grid_width, highlight_color)
         elif self.selection_mode == "selecting_ally":
             # Highlight player side
             highlight_color = (100, 150, 255)
-            for dy in range(grid_height):
-                for dx in range(ENCOUNTER_GRID_WIDTH):
-                    x = grid_start_x + dx
-                    y = grid_start_y + dy + 1
-                    # Bounds check before accessing console arrays
-                    if is_within_console_bounds(x, y):
-                        # Get current character and preserve it while changing background
-                        current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
-                        current_fg = tuple(console.fg[x, y])
-                        console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
+            self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_width, grid_height,
+                                       0, ENCOUNTER_GRID_WIDTH, highlight_color)
         elif self.selection_mode == "selecting_enemy":
             # Highlight enemy side
             highlight_color = (150, 100, 255)
-            for dy in range(grid_height):
-                for dx in range(ENCOUNTER_GRID_WIDTH, grid_width):
-                    x = grid_start_x + dx
-                    y = grid_start_y + dy + 1
-                    # Bounds check before accessing console arrays
-                    if is_within_console_bounds(x, y):
-                        # Get current character and preserve it while changing background
-                        current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
-                        current_fg = tuple(console.fg[x, y])
-                        console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
+            self._highlight_grid_region(console, grid_start_x, grid_start_y, grid_width, grid_height,
+                                       ENCOUNTER_GRID_WIDTH, grid_width, highlight_color)
 
-        # BOTTOM RIGHT: Actions panel
-        actions_start_y = top_panel_height + 2
+    def _highlight_grid_region(self, console: tcod.console.Console, grid_start_x: int, 
+                               grid_start_y: int, grid_width: int, grid_height: int,
+                               dx_start: int, dx_end: int, highlight_color: tuple[int, int, int]) -> None:
+        """Apply highlighting to a specific region of the battle grid.
+        
+        Args:
+            console: The console to render to
+            grid_start_x: X position where grid starts
+            grid_start_y: Y position where grid starts
+            grid_width: Width of the battle grid (unused but kept for consistency)
+            grid_height: Height of the battle grid
+            dx_start: Starting X offset for the region to highlight
+            dx_end: Ending X offset for the region to highlight
+            highlight_color: RGB color tuple for the highlight
+        """
+        for dy in range(grid_height):
+            for dx in range(dx_start, dx_end):
+                x = grid_start_x + dx
+                y = grid_start_y + dy + 1
+                # Bounds check before accessing console arrays
+                if is_within_console_bounds(x, y):
+                    # Get current character and preserve it while changing background
+                    current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
+                    current_fg = tuple(console.fg[x, y])
+                    console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
+
+    def _render_actions_panel(self, console: tcod.console.Console, right_panel_x: int, 
+                             actions_start_y: int) -> None:
+        """Render the actions panel showing available commands.
+        
+        Args:
+            console: The console to render to
+            right_panel_x: X position where right panel starts
+            actions_start_y: Y position where actions panel starts
+        """
         console.print(right_panel_x + 2, actions_start_y, "ACTIONS", fg=(255, 255, 0))
         
         if self.action_mode in ("attack", "convert"):
@@ -501,6 +531,54 @@ class EncounterScreen(Screen):
             console.print(right_panel_x + 2, actions_start_y + 4, "[Q] Select Ally", fg=(200, 200, 200))
             console.print(right_panel_x + 2, actions_start_y + 5, "[E] Select Enemy", fg=(200, 200, 200))
             console.print(right_panel_x + 2, actions_start_y + 6, "[F] Flee", fg=(200, 200, 200))
+
+    def render(self, console: tcod.console.Console, game: "game.Game") -> None:
+        """Render the encounter screen to the console.
+
+        Args:
+            console: The console to render to
+            game: The game instance
+        """
+        console.clear()
+
+        # Calculate layout dimensions
+        info_panel_width = GRID_WIDTH // 2
+        right_panel_x = info_panel_width
+        right_panel_width = GRID_WIDTH - info_panel_width
+        top_panel_height = GRID_HEIGHT // 2
+
+        # Render dividers
+        self._render_dividers(console, info_panel_width, right_panel_x, top_panel_height)
+
+        # Get selected entity information
+        selected_creature, selected_name = self._get_selected_entity_info(game)
+
+        # Render info panel
+        self._render_info_panel(console, game, selected_creature, selected_name)
+
+        # Calculate battle grid dimensions
+        grid_width = 6
+        grid_height = 3
+        grid_start_x = right_panel_x + (right_panel_width - grid_width) // 2
+        grid_start_y = 2
+
+        # Render battle grid border
+        self._render_battle_grid_border(console, grid_start_x, grid_start_y, grid_width, grid_height)
+
+        # Render entities from both teams
+        if game.gamestate.active_encounter is not None:
+            player_team = game.gamestate.active_encounter.player_team
+            enemy_team = game.gamestate.active_encounter.enemy_team
+            
+            self._render_team_entities(console, player_team, grid_start_x, grid_start_y, 0, True)
+            self._render_team_entities(console, enemy_team, grid_start_x, grid_start_y, 3, False)
+
+        # Apply highlighting based on current mode
+        self._apply_grid_highlighting(console, grid_start_x, grid_start_y, grid_width, grid_height)
+
+        # Render actions panel
+        actions_start_y = top_panel_height + 2
+        self._render_actions_panel(console, right_panel_x, actions_start_y)
 
 
 class MainMenu(Screen):
