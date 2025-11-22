@@ -532,8 +532,6 @@ class EncounterScreen(Screen):
         # Sanity check - we should never be rendering this screen without an active encounter
         assert game.gamestate.active_encounter is not None, \
             "EncounterScreen.render called without active encounter"
-        
-        console.clear()
 
         # Calculate layout dimensions
         info_panel_width = GRID_WIDTH // 2
