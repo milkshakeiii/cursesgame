@@ -199,6 +199,9 @@ class EncounterScreen(Screen):
     def __init__(self):
         """Initialize the EncounterScreen."""
         self.action_mode = None  # "attack" or "convert" when selecting target
+        self.selection_mode = None  # "selecting_ally", "selecting_enemy", or None
+        self.selected_side = "enemy"  # "player" or "enemy"
+        self.selected_index = 4  # Index 0-8 in the grid (default to middle)
         self.target_selection_map = {
             tcod.event.KeySym.KP_7: (0, 0),  # top-left
             tcod.event.KeySym.KP_8: (1, 0),  # top-center
@@ -216,16 +219,17 @@ class EncounterScreen(Screen):
 
         Processes combat actions (A for attack, C for convert) and allows
         fleeing (F key) which returns to the map view.
+        Q to select allies, E to select enemies.
 
         Args:
             event: The event to handle
             game: The game instance
         """
         if isinstance(event, tcod.event.KeyDown):
-            # If in target selection mode, handle numpad input
+            # If in target selection mode (for attack/convert), handle numpad input
             if self.action_mode in ("attack", "convert"):
                 if event.sym in self.target_selection_map:
-                    # Get the target coordinates (not used for now, but could be used for multi-target)
+                    # Get the target coordinates
                     target_x, target_y = self.target_selection_map[event.sym]
                     
                     # Execute the action through advance_step
@@ -234,20 +238,45 @@ class EncounterScreen(Screen):
                     # Exit selection mode
                     self.action_mode = None
                     
-                    # Check if encounter ended (creature defeated or converted)
+                    # Check if encounter ended (all creatures defeated or converted)
                     if game.gamestate.active_encounter is None:
                         game.current_back_screen = game.map_view
                 elif event.sym == tcod.event.KeySym.ESCAPE:
                     # Cancel target selection
                     self.action_mode = None
+            # If in ally/enemy selection mode, handle numpad input
+            elif self.selection_mode in ("selecting_ally", "selecting_enemy"):
+                if event.sym in self.target_selection_map:
+                    # Get the grid position
+                    grid_x, grid_y = self.target_selection_map[event.sym]
+                    grid_index = grid_y * 3 + grid_x
+                    
+                    # Update selection
+                    if self.selection_mode == "selecting_ally":
+                        self.selected_side = "player"
+                    else:
+                        self.selected_side = "enemy"
+                    self.selected_index = grid_index
+                    
+                    # Exit selection mode
+                    self.selection_mode = None
+                elif event.sym == tcod.event.KeySym.ESCAPE:
+                    # Cancel selection
+                    self.selection_mode = None
             else:
-                # Normal mode - handle action selection
+                # Normal mode - handle action/selection keys
                 if event.sym == tcod.event.KeySym.A:
-                    # Enter attack target selection mode
+                    # Enter attack target selection mode (only enemies)
                     self.action_mode = "attack"
                 elif event.sym == tcod.event.KeySym.C:
-                    # Enter convert target selection mode
+                    # Enter convert target selection mode (only enemies)
                     self.action_mode = "convert"
+                elif event.sym == tcod.event.KeySym.Q:
+                    # Enter ally selection mode
+                    self.selection_mode = "selecting_ally"
+                elif event.sym == tcod.event.KeySym.E:
+                    # Enter enemy selection mode
+                    self.selection_mode = "selecting_enemy"
                 elif event.sym == tcod.event.KeySym.F:
                     # Flee - return to map
                     game.gamestate.active_encounter = None
@@ -278,24 +307,51 @@ class EncounterScreen(Screen):
         for x in range(right_panel_x + 1, GRID_WIDTH):
             console.print(x, top_panel_height, "-", fg=(100, 100, 100))
 
-        # Get creature info if available
-        creature = None
+        # Get selected creature info for info panel
+        selected_creature = None
+        selected_name = None
         if game.gamestate.active_encounter is not None:
-            creature = game.gamestate.active_encounter.creature
+            if self.selected_side == "player":
+                team = game.gamestate.active_encounter.player_team
+                if team and self.selected_index < len(team):
+                    entity = team[self.selected_index]
+                    if isinstance(entity, Creature):
+                        selected_creature = entity
+                        selected_name = entity.name
+                    elif isinstance(entity, Player):
+                        selected_name = "Player"
+            else:  # enemy side
+                team = game.gamestate.active_encounter.enemy_team
+                if team and self.selected_index < len(team):
+                    entity = team[self.selected_index]
+                    if isinstance(entity, Creature):
+                        selected_creature = entity
+                        selected_name = entity.name
 
-        # LEFT PANEL: Info panel
+        # LEFT PANEL: Info panel - show selected creature info
         console.print(2, 1, "BATTLE INFO", fg=(255, 255, 0))
         
-        if creature:
-            console.print(2, 3, f"Enemy: {creature.name}", fg=(200, 200, 200))
-            health_color = (0, 255, 0) if creature.current_health > 30 else (255, 100, 100)
-            console.print(2, 4, f"HP: {creature.current_health}/{creature.max_health}", fg=health_color)
-            console.print(2, 5, f"Convert: {creature.current_convert}/100", fg=(150, 150, 255))
+        if selected_creature:
+            side_label = "Ally" if self.selected_side == "player" else "Enemy"
+            console.print(2, 3, f"{side_label}: {selected_name}", fg=(200, 200, 200))
+            health_color = (0, 255, 0) if selected_creature.current_health > 30 else (255, 100, 100)
+            console.print(2, 4, f"HP: {selected_creature.current_health}/{selected_creature.max_health}", fg=health_color)
+            console.print(2, 5, f"Convert: {selected_creature.current_convert}/100", fg=(150, 150, 255))
+        elif selected_name == "Player":
+            # Show player info
+            player = None
+            for placeable in game.gamestate.placeables or []:
+                if isinstance(placeable, Player):
+                    player = placeable
+                    break
+            if player:
+                console.print(2, 3, f"Player", fg=(200, 200, 200))
+                health_color = (0, 255, 0) if player.current_health > 30 else (255, 100, 100)
+                console.print(2, 4, f"HP: {player.current_health}/{player.max_health}", fg=health_color)
         else:
-            console.print(2, 3, "Enemy: ???", fg=(200, 200, 200))
-            console.print(2, 4, "HP: 100/100", fg=(0, 255, 0))
+            console.print(2, 3, "No selection", fg=(200, 200, 200))
 
-        # UPPER RIGHT: 6x3 grid with player on left and creature on right
+        # UPPER RIGHT: 6x3 grid with player team on left and enemy team on right
         grid_width = 6
         grid_height = 3
         grid_start_x = right_panel_x + (right_panel_width - grid_width) // 2
@@ -317,21 +373,79 @@ class EncounterScreen(Screen):
             grid_start_x + grid_width, grid_start_y + grid_height + 1, "+", fg=(100, 100, 100)
         )
 
-        # Draw player on the left side (middle of left 3x3 area)
-        player_x = grid_start_x + 1  # Left half, centered
-        player_y = grid_start_y + grid_height // 2 + 1
-        console.print(player_x, player_y, "@", fg=(0, 255, 0))
+        # Draw entities from teams
+        if game.gamestate.active_encounter is not None:
+            # Draw player team (left 3x3)
+            player_team = game.gamestate.active_encounter.player_team
+            if player_team:
+                for i in range(9):
+                    grid_x = i % 3
+                    grid_y = i // 3
+                    screen_x = grid_start_x + grid_x
+                    screen_y = grid_start_y + 1 + grid_y
+                    
+                    entity = player_team[i]
+                    if entity:
+                        # Determine symbol and color
+                        if isinstance(entity, Player):
+                            symbol = "@"
+                            color = (0, 255, 0)
+                        else:
+                            symbol = entity.symbol
+                            color = entity.color
+                        
+                        # Check if this is the selected entity
+                        is_selected = (self.selected_side == "player" and self.selected_index == i)
+                        bg_color = (100, 100, 50) if is_selected else (0, 0, 0)
+                        
+                        console.print(screen_x, screen_y, symbol, fg=color, bg=bg_color)
 
-        # Draw creature on the right side (middle of right 3x3 area)
-        if creature:
-            creature_x = grid_start_x + 4  # Right half, centered
-            creature_y = grid_start_y + grid_height // 2 + 1
-            console.print(creature_x, creature_y, creature.symbol, fg=creature.color)
+            # Draw enemy team (right 3x3)
+            enemy_team = game.gamestate.active_encounter.enemy_team
+            if enemy_team:
+                for i in range(9):
+                    grid_x = i % 3
+                    grid_y = i // 3
+                    screen_x = grid_start_x + 3 + grid_x
+                    screen_y = grid_start_y + 1 + grid_y
+                    
+                    entity = enemy_team[i]
+                    if entity:
+                        symbol = entity.symbol
+                        color = entity.color
+                        
+                        # Check if this is the selected entity
+                        is_selected = (self.selected_side == "enemy" and self.selected_index == i)
+                        bg_color = (100, 100, 50) if is_selected else (0, 0, 0)
+                        
+                        console.print(screen_x, screen_y, symbol, fg=color, bg=bg_color)
 
-        # If in target selection mode, highlight the right half (3x3 area)
+        # Highlight appropriate side based on mode
         if self.action_mode in ("attack", "convert"):
+            # Highlight enemy side for attack/convert
             highlight_color = (255, 255, 100) if self.action_mode == "attack" else (150, 150, 255)
-            # Highlight the right half of the grid (3x3 area)
+            for dy in range(grid_height):
+                for dx in range(3, grid_width):
+                    x = grid_start_x + dx
+                    y = grid_start_y + dy + 1
+                    # Get current character and preserve it while changing background
+                    current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
+                    current_fg = tuple(console.fg[x, y])
+                    console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
+        elif self.selection_mode == "selecting_ally":
+            # Highlight player side
+            highlight_color = (100, 150, 255)
+            for dy in range(grid_height):
+                for dx in range(3):
+                    x = grid_start_x + dx
+                    y = grid_start_y + dy + 1
+                    # Get current character and preserve it while changing background
+                    current_char = chr(console.ch[x, y]) if console.ch[x, y] != 0 else " "
+                    current_fg = tuple(console.fg[x, y])
+                    console.print(x, y, current_char, fg=current_fg, bg=highlight_color)
+        elif self.selection_mode == "selecting_enemy":
+            # Highlight enemy side
+            highlight_color = (150, 100, 255)
             for dy in range(grid_height):
                 for dx in range(3, grid_width):
                     x = grid_start_x + dx
@@ -351,11 +465,19 @@ class EncounterScreen(Screen):
             console.print(right_panel_x + 2, actions_start_y + 2, f"Select {action_name} target:", fg=(255, 255, 100))
             console.print(right_panel_x + 2, actions_start_y + 3, "Use numpad 1-9", fg=(200, 200, 200))
             console.print(right_panel_x + 2, actions_start_y + 4, "ESC to cancel", fg=(150, 150, 150))
+        elif self.selection_mode in ("selecting_ally", "selecting_enemy"):
+            # Show selection instructions
+            side_name = "ALLY" if self.selection_mode == "selecting_ally" else "ENEMY"
+            console.print(right_panel_x + 2, actions_start_y + 2, f"Select {side_name}:", fg=(255, 255, 100))
+            console.print(right_panel_x + 2, actions_start_y + 3, "Use numpad 1-9", fg=(200, 200, 200))
+            console.print(right_panel_x + 2, actions_start_y + 4, "ESC to cancel", fg=(150, 150, 150))
         else:
             # Show available actions
             console.print(right_panel_x + 2, actions_start_y + 2, "[A] Attack", fg=(200, 200, 200))
             console.print(right_panel_x + 2, actions_start_y + 3, "[C] Convert", fg=(200, 200, 200))
-            console.print(right_panel_x + 2, actions_start_y + 4, "[F] Flee", fg=(200, 200, 200))
+            console.print(right_panel_x + 2, actions_start_y + 4, "[Q] Select Ally", fg=(200, 200, 200))
+            console.print(right_panel_x + 2, actions_start_y + 5, "[E] Select Enemy", fg=(200, 200, 200))
+            console.print(right_panel_x + 2, actions_start_y + 6, "[F] Flee", fg=(200, 200, 200))
 
 
 class MainMenu(Screen):

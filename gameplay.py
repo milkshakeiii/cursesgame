@@ -52,37 +52,68 @@ def advance_step(
                 if isinstance(placeable, Encounter):
                     if placeable.x == player.x and placeable.y == player.y:
                         gamestate.active_encounter = placeable
+                        # Initialize encounter grids
+                        # Player team: player in middle (index 4), then player's creatures
+                        placeable.player_team = [None] * 9
+                        placeable.player_team[4] = player  # Middle position
+                        # Place player's creatures around them
+                        creature_positions = [0, 1, 2, 3, 5, 6, 7, 8]  # All positions except middle
+                        for i, creature in enumerate(player.creatures):
+                            if i < len(creature_positions):
+                                placeable.player_team[creature_positions[i]] = creature
+                        
+                        # Enemy team: encounter creature in middle (index 4)
+                        placeable.enemy_team = [None] * 9
+                        if placeable.creature:
+                            placeable.enemy_team[4] = placeable.creature  # Middle position
                         break
 
     elif action_type == "attack" and gamestate.active_encounter is not None:
-        # Attack action during encounter
-        creature = gamestate.active_encounter.creature
-        if creature is not None:
-            creature.current_health = max(0, creature.current_health - 5)
+        # Attack action during encounter - target_x, target_y are grid coordinates (0-2, 0-2)
+        target_x, target_y = action[1], action[2]
+        grid_index = target_y * 3 + target_x  # Convert 2D to 1D index
+        
+        # Get the target from enemy team
+        target = gamestate.active_encounter.enemy_team[grid_index]
+        if target is not None and isinstance(target, Creature):
+            target.current_health = max(0, target.current_health - 5)
             
             # Check if creature was defeated
-            if creature.current_health <= 0:
-                # Remove the encounter from the map
-                gamestate.placeables = [
-                    p for p in gamestate.placeables if p != gamestate.active_encounter
-                ]
-                gamestate.active_encounter = None
+            if target.current_health <= 0:
+                gamestate.active_encounter.enemy_team[grid_index] = None
+                
+                # Check if all enemies defeated
+                if all(enemy is None for enemy in gamestate.active_encounter.enemy_team):
+                    # Remove the encounter from the map
+                    gamestate.placeables = [
+                        p for p in gamestate.placeables if p != gamestate.active_encounter
+                    ]
+                    gamestate.active_encounter = None
 
     elif action_type == "convert" and gamestate.active_encounter is not None:
-        # Convert action during encounter
-        creature = gamestate.active_encounter.creature
-        if creature is not None:
-            creature.current_convert = min(100, creature.current_convert + 5)
+        # Convert action during encounter - target_x, target_y are grid coordinates (0-2, 0-2)
+        target_x, target_y = action[1], action[2]
+        grid_index = target_y * 3 + target_x  # Convert 2D to 1D index
+        
+        # Get the target from enemy team
+        target = gamestate.active_encounter.enemy_team[grid_index]
+        if target is not None and isinstance(target, Creature):
+            target.current_convert = min(100, target.current_convert + 5)
             
             # Check if creature was converted
-            if creature.current_convert >= 100:
+            if target.current_convert >= 100:
                 # Add creature to player's team
-                player.creatures.append(creature)
-                # Remove the encounter from the map
-                gamestate.placeables = [
-                    p for p in gamestate.placeables if p != gamestate.active_encounter
-                ]
-                gamestate.active_encounter = None
+                player.creatures.append(target)
+                # Remove from enemy team
+                gamestate.active_encounter.enemy_team[grid_index] = None
+                
+                # Check if all enemies defeated/converted
+                if all(enemy is None for enemy in gamestate.active_encounter.enemy_team):
+                    # Remove the encounter from the map
+                    gamestate.placeables = [
+                        p for p in gamestate.placeables if p != gamestate.active_encounter
+                    ]
+                    gamestate.active_encounter = None
 
     return gamestate
 

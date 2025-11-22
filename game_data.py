@@ -50,6 +50,15 @@ class Encounter(Placeable):
 
     visible: bool = False
     creature: Optional[Creature] = None
+    player_team: list[Optional["Creature | Player"]] = None  # 9 cells: TL, T, TR, L, M, R, BL, B, BR
+    enemy_team: list[Optional[Creature]] = None  # 9 cells: TL, T, TR, L, M, R, BL, B, BR
+
+    def __post_init__(self):
+        """Initialize mutable default values."""
+        if self.player_team is None:
+            self.player_team = [None] * 9
+        if self.enemy_team is None:
+            self.enemy_team = [None] * 9
 
 
 @dataclass

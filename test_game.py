@@ -772,10 +772,13 @@ class TestAttackAction:
         player = Player(10, 10)
         creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        # Initialize enemy team with creature in middle position
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = creature  # Middle position (1, 1)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
-        # Perform attack
-        result = advance_step(gamestate, ("attack", 0, 0))
+        # Perform attack on middle position (1, 1)
+        result = advance_step(gamestate, ("attack", 1, 1))
 
         assert creature.current_health == 95
 
@@ -784,10 +787,13 @@ class TestAttackAction:
         player = Player(10, 10)
         creature = create_test_creature(health=5)
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        # Initialize enemy team with creature in middle position
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = creature  # Middle position (1, 1)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
-        # Perform attack that should defeat creature
-        result = advance_step(gamestate, ("attack", 0, 0))
+        # Perform attack that should defeat creature on middle position (1, 1)
+        result = advance_step(gamestate, ("attack", 1, 1))
 
         assert creature.current_health == 0
         assert result.active_encounter is None
@@ -802,10 +808,13 @@ class TestConvertAction:
         player = Player(10, 10)
         creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        # Initialize enemy team with creature in middle position
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = creature  # Middle position (1, 1)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
-        # Perform convert
-        result = advance_step(gamestate, ("convert", 0, 0))
+        # Perform convert on middle position (1, 1)
+        result = advance_step(gamestate, ("convert", 1, 1))
 
         assert creature.current_convert == 5
 
@@ -814,10 +823,13 @@ class TestConvertAction:
         player = Player(10, 10)
         creature = create_test_creature(convert=95)
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        # Initialize enemy team with creature in middle position
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = creature  # Middle position (1, 1)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
-        # Perform convert that should complete conversion
-        result = advance_step(gamestate, ("convert", 0, 0))
+        # Perform convert that should complete conversion on middle position (1, 1)
+        result = advance_step(gamestate, ("convert", 1, 1))
 
         assert creature.current_convert == 100
         assert creature in player.creatures
@@ -829,10 +841,13 @@ class TestConvertAction:
         player = Player(10, 10)
         creature = create_test_creature(convert=98)
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        # Initialize enemy team with creature in middle position
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = creature  # Middle position (1, 1)
         gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
-        # Perform convert
-        result = advance_step(gamestate, ("convert", 0, 0))
+        # Perform convert on middle position (1, 1)
+        result = advance_step(gamestate, ("convert", 1, 1))
 
         assert creature.current_convert == 100
 
@@ -896,6 +911,9 @@ class TestEncounterScreenActions:
         player = Player(10, 10)
         creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        # Initialize enemy team with creature in middle position
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = creature  # Middle position (1, 1)
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Enter attack mode
@@ -918,6 +936,9 @@ class TestEncounterScreenActions:
         player = Player(10, 10)
         creature = create_test_creature()
         encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        # Initialize enemy team with creature in middle position
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = creature  # Middle position (1, 1)
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
         # Enter convert mode
@@ -931,3 +952,179 @@ class TestEncounterScreenActions:
 
         assert screen.action_mode is None  # Should exit action mode
         assert creature.current_convert == 5  # Should have increased convert
+
+
+class TestEncounterGridSystem:
+    """Tests for the new encounter grid system."""
+
+    def test_encounter_initializes_with_grids(self):
+        """Test that Encounter initializes with empty grids."""
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255))
+        assert encounter.player_team is not None
+        assert len(encounter.player_team) == 9
+        assert encounter.enemy_team is not None
+        assert len(encounter.enemy_team) == 9
+
+    def test_stepping_on_encounter_initializes_grids(self):
+        """Test that stepping on encounter initializes the grids properly."""
+        player = Player(10, 10)
+        creature = create_test_creature()
+        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        gamestate = GameState(placeables=[player, encounter], active_encounter=None)
+
+        # Move player onto encounter
+        result = advance_step(gamestate, ("move", 1, 0))
+
+        # Check that grids were initialized
+        assert result.active_encounter is not None
+        assert result.active_encounter.player_team[4] == player  # Player in middle
+        assert result.active_encounter.enemy_team[4] == creature  # Enemy in middle
+
+    def test_player_creatures_placed_in_grid(self):
+        """Test that player's creatures are placed in the grid."""
+        player = Player(10, 10)
+        # Add some creatures to player's team
+        ally1 = create_test_creature(name="Ally1")
+        ally2 = create_test_creature(name="Ally2")
+        player.creatures = [ally1, ally2]
+        
+        creature = create_test_creature()
+        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        gamestate = GameState(placeables=[player, encounter], active_encounter=None)
+
+        # Move player onto encounter
+        result = advance_step(gamestate, ("move", 1, 0))
+
+        # Check that player and allies are placed
+        assert result.active_encounter.player_team[4] == player  # Player in middle
+        assert ally1 in result.active_encounter.player_team
+        assert ally2 in result.active_encounter.player_team
+
+    def test_attack_at_different_grid_positions(self):
+        """Test that attacks work at different grid positions."""
+        player = Player(10, 10)
+        creature1 = create_test_creature(name="Enemy1")
+        creature2 = create_test_creature(name="Enemy2")
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature1)
+        
+        # Place enemies at different positions
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[0] = creature1  # Top-left (0, 0)
+        encounter.enemy_team[8] = creature2  # Bottom-right (2, 2)
+        gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Attack top-left
+        result = advance_step(gamestate, ("attack", 0, 0))
+        assert creature1.current_health == 95
+        assert creature2.current_health == 100  # Unchanged
+
+        # Attack bottom-right
+        result = advance_step(gamestate, ("attack", 2, 2))
+        assert creature2.current_health == 95
+        assert creature1.current_health == 95  # Unchanged from previous attack
+
+    def test_encounter_ends_when_all_enemies_defeated(self):
+        """Test that encounter ends when all enemies are defeated."""
+        player = Player(10, 10)
+        creature = create_test_creature(health=5)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        
+        # Place only one enemy
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = creature
+        gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Attack to defeat
+        result = advance_step(gamestate, ("attack", 1, 1))
+
+        assert result.active_encounter is None
+        assert encounter not in result.placeables
+
+
+class TestEncounterSelection:
+    """Tests for creature selection in encounters."""
+
+    def test_encounter_screen_has_selection_state(self):
+        """Test that EncounterScreen has selection state."""
+        screen = EncounterScreen()
+        assert screen.selected_side in ["player", "enemy"]
+        assert 0 <= screen.selected_index < 9
+        assert screen.selection_mode is None
+
+    def test_encounter_screen_enter_ally_selection_mode(self):
+        """Test that pressing Q enters ally selection mode."""
+        screen = EncounterScreen()
+        game = Game()
+
+        # Press Q
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.Q, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.selection_mode == "selecting_ally"
+
+    def test_encounter_screen_enter_enemy_selection_mode(self):
+        """Test that pressing E enters enemy selection mode."""
+        screen = EncounterScreen()
+        game = Game()
+
+        # Press E
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.E, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.selection_mode == "selecting_enemy"
+
+    def test_selecting_ally_with_numpad(self):
+        """Test selecting an ally with numpad."""
+        screen = EncounterScreen()
+        game = Game()
+
+        # Enter ally selection mode
+        screen.selection_mode = "selecting_ally"
+
+        # Press numpad 7 (top-left)
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.KP_7, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.selected_side == "player"
+        assert screen.selected_index == 0  # Top-left
+        assert screen.selection_mode is None  # Exit selection mode
+
+    def test_selecting_enemy_with_numpad(self):
+        """Test selecting an enemy with numpad."""
+        screen = EncounterScreen()
+        game = Game()
+
+        # Enter enemy selection mode
+        screen.selection_mode = "selecting_enemy"
+
+        # Press numpad 3 (bottom-right)
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.KP_3, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.selected_side == "enemy"
+        assert screen.selected_index == 8  # Bottom-right
+        assert screen.selection_mode is None  # Exit selection mode
+
+    def test_cancel_selection_with_escape(self):
+        """Test that ESC cancels selection mode."""
+        screen = EncounterScreen()
+        game = Game()
+
+        # Enter ally selection mode
+        screen.selection_mode = "selecting_ally"
+
+        # Press ESC
+        event = tcod.event.KeyDown(
+            scancode=0, sym=tcod.event.KeySym.ESCAPE, mod=tcod.event.Modifier.NONE
+        )
+        screen.handle_specific_event(event, game)
+
+        assert screen.selection_mode is None
