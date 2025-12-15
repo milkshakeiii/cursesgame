@@ -1,0 +1,408 @@
+import pygame
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Optional, Union
+from enum import Enum
+
+from game_data import GRID_HEIGHT, GRID_WIDTH, Player, Creature
+from gameplay import advance_step
+
+if TYPE_CHECKING:
+    import main as game_module
+
+# Constants for encounter grid
+ENCOUNTER_GRID_WIDTH = 3
+ENCOUNTER_GRID_HEIGHT = 3
+
+class EncounterMode(Enum):
+    """Enum for encounter screen modes."""
+    NORMAL = "normal"
+    ATTACK = "attack"
+    CONVERT = "convert"
+    SELECTING_ALLY = "selecting_ally"
+    SELECTING_ENEMY = "selecting_enemy"
+
+class Screen(ABC):
+    """Base class for screens in the game."""
+
+    def handle_event(self, event: pygame.event.Event, game: "game_module.Game") -> None:
+        """Handle an input event."""
+        if event.type == pygame.QUIT:
+            game.running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN and (pygame.key.get_mods() & pygame.KMOD_ALT):
+                game.toggle_fullscreen()
+            elif event.key == pygame.K_ESCAPE:
+                if not self.handle_specific_event(event, game):
+                     game.running = False
+            else:
+                self.handle_specific_event(event, game)
+        else:
+            self.handle_specific_event(event, game)
+
+    @abstractmethod
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        """
+        Handle a screen-specific input event.
+        Returns True if the event was consumed, False if default handling (like quitting) should occur.
+        """
+        return False
+
+    @abstractmethod
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        """Render the screen to the display."""
+        pass
+
+    def draw_text(self, screen: pygame.Surface, text: str, x: int, y: int, color: tuple[int, int, int], font: pygame.font.Font, centered: bool = False):
+        surface = font.render(text, True, color)
+        rect = surface.get_rect()
+        if centered:
+            rect.center = (x, y)
+        else:
+            rect.topleft = (x, y)
+        screen.blit(surface, rect)
+
+class MainMenu(Screen):
+    """Main menu screen."""
+
+    def __init__(self):
+        self.options = ["New Game", "Options", "Exit"]
+        self.selected_index = 0
+        self.font = pygame.font.SysFont("monospace", 30, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 20)
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_UP, pygame.K_KP8):
+                self.selected_index = (self.selected_index - 1) % len(self.options)
+                return True
+            elif event.key in (pygame.K_DOWN, pygame.K_KP2):
+                self.selected_index = (self.selected_index + 1) % len(self.options)
+                return True
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                self._select_option(game)
+                return True
+            elif event.key == pygame.K_ESCAPE:
+                return False
+        return False
+
+    def _select_option(self, game: "game_module.Game") -> None:
+        selected = self.options[self.selected_index]
+        if selected == "New Game":
+            game.current_back_screen = game.map_view
+        elif selected == "Options":
+            pass
+        elif selected == "Exit":
+            game.running = False
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        screen.fill((0, 0, 0))
+        
+        # Draw Title
+        title = "MAIN MENU"
+        center_x = screen.get_width() // 2
+        self.draw_text(screen, title, center_x, screen.get_height() // 4, (255, 255, 0), self.font, centered=True)
+
+        # Draw Options
+        start_y = screen.get_height() // 2
+        for i, option in enumerate(self.options):
+            y = start_y + i * 40
+            color = (0, 255, 0) if i == self.selected_index else (200, 200, 200)
+            text = f"> {option} <" if i == self.selected_index else option
+            self.draw_text(screen, text, center_x, y, color, self.font, centered=True)
+
+        # Draw Instructions
+        instr1 = "Use UP/DOWN or numpad 8/2 to navigate."
+        instr2 = "ENTER to select. ESC to quit."
+        self.draw_text(screen, instr1, center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+        self.draw_text(screen, instr2, center_x, screen.get_height() - 30, (150, 150, 150), self.small_font, centered=True)
+
+class MapView(Screen):
+    """Screen where the player moves around the map."""
+
+    def __init__(self):
+        self.direction_map = {
+            pygame.K_KP4: (-1, 0),
+            pygame.K_KP6: (1, 0),
+            pygame.K_KP8: (0, -1),
+            pygame.K_KP2: (0, 1),
+            pygame.K_KP7: (-1, -1),
+            pygame.K_KP9: (1, -1),
+            pygame.K_KP1: (-1, 1),
+            pygame.K_KP3: (1, 1),
+            pygame.K_LEFT: (-1, 0),
+            pygame.K_RIGHT: (1, 0),
+            pygame.K_UP: (0, -1),
+            pygame.K_DOWN: (0, 1)
+        }
+        self.font = pygame.font.SysFont("monospace", 20)
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if event.key in self.direction_map:
+                dx, dy = self.direction_map[event.key]
+                game.gamestate = advance_step(game.gamestate, ("move", dx, dy))
+                if game.gamestate.active_encounter is not None:
+                    game.current_back_screen = game.encounter_start_screen
+                return True
+        return False
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        screen.fill((0, 0, 0))
+
+        # We assume screen size is setup to handle GRID_WIDTH * tile_size
+        # Draw all visible placeables except player first
+        for placeable in game.gamestate.placeables or []:
+            if placeable.visible and not isinstance(placeable, Player):
+                game.sprite_manager.draw(screen, placeable.x, placeable.y, placeable.symbol, placeable.color)
+
+        # Draw player
+        for placeable in game.gamestate.placeables or []:
+            if isinstance(placeable, Player):
+                game.sprite_manager.draw(screen, placeable.x, placeable.y, placeable.symbol, placeable.color)
+
+class EncounterStartScreen(Screen):
+    """Screen shown when the player first encounters something."""
+
+    def __init__(self):
+        self.font = pygame.font.SysFont("monospace", 30, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 20)
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                game.current_back_screen = game.encounter_screen
+                return True
+        return False
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        screen.fill((0, 0, 0))
+
+        center_x = screen.get_width() // 2
+        
+        self.draw_text(screen, "ENCOUNTER!", center_x, screen.get_height() // 3, (255, 255, 0), self.font, centered=True)
+        self.draw_text(screen, "You encountered something!", center_x, screen.get_height() // 2, (200, 200, 200), self.small_font, centered=True)
+        self.draw_text(screen, "Press ENTER or SPACE to continue", center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+
+class EncounterScreen(Screen):
+    """Main tactical battle screen for encounters."""
+
+    def __init__(self):
+        self.mode = EncounterMode.NORMAL
+        self.selected_side = "enemy"  # "player" or "enemy"
+        self.selected_index = 4  # Index 0-8 in the grid (default to middle)
+        self.font = pygame.font.SysFont("monospace", 20)
+        self.header_font = pygame.font.SysFont("monospace", 24, bold=True)
+        self.target_selection_map = {
+            pygame.K_KP7: (0, 0), pygame.K_7: (0, 0),
+            pygame.K_KP8: (1, 0), pygame.K_8: (1, 0),
+            pygame.K_KP9: (2, 0), pygame.K_9: (2, 0),
+            pygame.K_KP4: (0, 1), pygame.K_4: (0, 1),
+            pygame.K_KP5: (1, 1), pygame.K_5: (1, 1),
+            pygame.K_KP6: (2, 1), pygame.K_6: (2, 1),
+            pygame.K_KP1: (0, 2), pygame.K_1: (0, 2),
+            pygame.K_KP2: (1, 2), pygame.K_2: (1, 2),
+            pygame.K_KP3: (2, 2), pygame.K_3: (2, 2),
+        }
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if self.mode in (EncounterMode.ATTACK, EncounterMode.CONVERT):
+                if event.key in self.target_selection_map:
+                    target_x, target_y = self.target_selection_map[event.key]
+                    action_type = "attack" if self.mode == EncounterMode.ATTACK else "convert"
+                    game.gamestate = advance_step(game.gamestate, (action_type, target_x, target_y))
+                    self.mode = EncounterMode.NORMAL
+                    if game.gamestate.active_encounter is None:
+                        game.current_back_screen = game.map_view
+                    return True
+                elif event.key == pygame.K_ESCAPE:
+                    self.mode = EncounterMode.NORMAL
+                    return True
+            
+            elif self.mode in (EncounterMode.SELECTING_ALLY, EncounterMode.SELECTING_ENEMY):
+                if event.key in self.target_selection_map:
+                    grid_x, grid_y = self.target_selection_map[event.key]
+                    grid_index = grid_y * ENCOUNTER_GRID_WIDTH + grid_x
+                    
+                    if self.mode == EncounterMode.SELECTING_ALLY:
+                        self.selected_side = "player"
+                    else:
+                        self.selected_side = "enemy"
+                    self.selected_index = grid_index
+                    self.mode = EncounterMode.NORMAL
+                    return True
+                elif event.key == pygame.K_ESCAPE:
+                    self.mode = EncounterMode.NORMAL
+                    return True
+            
+            else: # Normal Mode
+                if event.key == pygame.K_a:
+                    self.mode = EncounterMode.ATTACK
+                    return True
+                elif event.key == pygame.K_c:
+                    self.mode = EncounterMode.CONVERT
+                    return True
+                elif event.key == pygame.K_q:
+                    self.mode = EncounterMode.SELECTING_ALLY
+                    return True
+                elif event.key == pygame.K_e:
+                    self.mode = EncounterMode.SELECTING_ENEMY
+                    return True
+                elif event.key == pygame.K_f:
+                    game.gamestate.active_encounter = None
+                    game.current_back_screen = game.map_view
+                    return True
+                elif event.key == pygame.K_ESCAPE:
+                    # In normal mode, ESC does nothing or quits?
+                    # Original code: if specific event doesn't handle, base class quits.
+                    # Original screens.py: elif ESC: Cancel action selection...
+                    # But for Normal mode, it fell through to default handling?
+                    # Let's return False to allow base class to handle quit if in Normal mode.
+                    return False
+
+        return False
+
+    def _get_selected_entity(self, game: "game_module.Game") -> Optional[Union[Creature, Player]]:
+        if game.gamestate.active_encounter is None:
+            return None
+        
+        team = None
+        if self.selected_side == "player":
+            team = game.gamestate.active_encounter.player_team
+        else:
+            team = game.gamestate.active_encounter.enemy_team
+            
+        if team and self.selected_index < len(team):
+            return team[self.selected_index]
+        return None
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        if game.gamestate.active_encounter is None:
+            return
+
+        screen.fill((0, 0, 0))
+
+        # Layout calculations
+        width, height = screen.get_width(), screen.get_height()
+        half_width = width // 2
+        half_height = height // 2
+
+        # Draw Vertical Divider
+        pygame.draw.line(screen, (100, 100, 100), (half_width, 0), (half_width, height))
+        # Draw Horizontal Divider (Right Side)
+        pygame.draw.line(screen, (100, 100, 100), (half_width, half_height), (width, half_height))
+
+        # --- INFO PANEL (Left) ---
+        self.draw_text(screen, "BATTLE INFO", 20, 20, (255, 255, 0), self.header_font)
+        
+        selected_entity = self._get_selected_entity(game)
+        if selected_entity:
+            side_label = "Ally" if self.selected_side == "player" else "Enemy"
+            # Special case for Player object which has no 'name' attr in some versions? 
+            # Check game_data.py: Player has name="Player" default.
+            name = getattr(selected_entity, "name", "Unknown")
+            
+            self.draw_text(screen, f"{side_label}: {name}", 20, 60, (200, 200, 200), self.font)
+            
+            hp_color = (0, 255, 0) if selected_entity.current_health > 30 else (255, 100, 100)
+            self.draw_text(screen, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", 20, 90, hp_color, self.font)
+            
+            if hasattr(selected_entity, "current_convert"):
+                self.draw_text(screen, f"Convert: {selected_entity.current_convert}/100", 20, 120, (150, 150, 255), self.font)
+        else:
+            self.draw_text(screen, "No selection / Empty slot", 20, 60, (150, 150, 150), self.font)
+
+        # --- BATTLE GRID (Right Top) ---
+        # Grid is 6 tiles wide (3 player + 3 enemy), 3 tiles high
+        tile_size = game.sprite_manager.tile_size
+        grid_width_pixels = 6 * tile_size
+        grid_height_pixels = 3 * tile_size
+        
+        grid_start_x = half_width + (half_width - grid_width_pixels) // 2
+        grid_start_y = (half_height - grid_height_pixels) // 2
+
+        # Draw Grid Highlights
+        self._render_highlights(screen, game, grid_start_x, grid_start_y, tile_size)
+
+        # Draw Grid Entities
+        player_team = game.gamestate.active_encounter.player_team
+        enemy_team = game.gamestate.active_encounter.enemy_team
+        
+        # Draw Player Team (Offset 0)
+        self._render_team(screen, game, player_team, grid_start_x, grid_start_y, 0)
+        # Draw Enemy Team (Offset 3)
+        self._render_team(screen, game, enemy_team, grid_start_x, grid_start_y, 3)
+
+        # --- ACTIONS PANEL (Right Bottom) ---
+        action_x = half_width + 20
+        action_y = half_height + 20
+        self.draw_text(screen, "ACTIONS", action_x, action_y, (255, 255, 0), self.header_font)
+        
+        instructions = []
+        if self.mode == EncounterMode.ATTACK:
+            instructions = [("Select ATTACK target:", (255, 255, 100)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
+        elif self.mode == EncounterMode.CONVERT:
+            instructions = [("Select CONVERT target:", (150, 150, 255)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
+        elif self.mode in (EncounterMode.SELECTING_ALLY, EncounterMode.SELECTING_ENEMY):
+            target = "ALLY" if self.mode == EncounterMode.SELECTING_ALLY else "ENEMY"
+            instructions = [(f"Select {target}:", (255, 255, 100)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
+        else:
+            instructions = [
+                ("[A] Attack", (200, 200, 200)),
+                ("[C] Convert", (200, 200, 200)),
+                ("[Q] Select Ally", (200, 200, 200)),
+                ("[E] Select Enemy", (200, 200, 200)),
+                ("[F] Flee", (200, 200, 200))
+            ]
+
+        for i, (text, color) in enumerate(instructions):
+            self.draw_text(screen, text, action_x, action_y + 40 + i * 25, color, self.font)
+
+    def _render_highlights(self, screen: pygame.Surface, game: "game_module.Game", start_x: int, start_y: int, tile_size: int):
+        # Create a transparent surface for highlights
+        highlight_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
+        
+        # Determine active region to highlight
+        active_region = None # (start_col, end_col, color)
+        
+        if self.mode == EncounterMode.ATTACK:
+            active_region = (3, 6, (255, 255, 100, 50)) # Enemy side, Yellow tint
+        elif self.mode == EncounterMode.CONVERT:
+            active_region = (3, 6, (150, 150, 255, 50)) # Enemy side, Blue tint
+        elif self.mode == EncounterMode.SELECTING_ALLY:
+            active_region = (0, 3, (100, 150, 255, 50)) # Player side
+        elif self.mode == EncounterMode.SELECTING_ENEMY:
+            active_region = (3, 6, (150, 100, 255, 50)) # Enemy side
+
+        if active_region:
+            col_start, col_end, color = active_region
+            highlight_surf.fill(color)
+            for y in range(3):
+                for x in range(col_start, col_end):
+                    screen.blit(highlight_surf, (start_x + x * tile_size, start_y + y * tile_size))
+        
+        # Highlight Selected Entity (Cursor)
+        cursor_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
+        cursor_surf.fill((255, 255, 255, 50)) # White highlight
+        pygame.draw.rect(cursor_surf, (255, 255, 255), cursor_surf.get_rect(), 2) # Border
+
+        sel_x_offset = 0 if self.selected_side == "player" else 3
+        sel_x = (self.selected_index % 3) + sel_x_offset
+        sel_y = self.selected_index // 3
+        
+        screen.blit(cursor_surf, (start_x + sel_x * tile_size, start_y + sel_y * tile_size))
+
+    def _render_team(self, screen: pygame.Surface, game: "game_module.Game", team: list, start_x: int, start_y: int, x_offset: int):
+        if not team: return
+        for i, entity in enumerate(team):
+            if entity:
+                grid_x = (i % 3) + x_offset
+                grid_y = i // 3
+                # Use sprite manager logic, but need to pass grid coordinates manually converted to pixels?
+                # SpriteManager.draw takes grid coordinates (x,y) and multiplies by tile_size.
+                # Here we are drawing at absolute pixel positions + offset.
+                # So we can't use SpriteManager.draw directly unless we trick it or add a method.
+                # Or just use get_sprite and blit manually.
+                
+                sprite = game.sprite_manager.get_sprite(entity.symbol, entity.color)
+                screen.blit(sprite, (start_x + grid_x * game.sprite_manager.tile_size, start_y + grid_y * game.sprite_manager.tile_size))
