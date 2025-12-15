@@ -7,7 +7,7 @@ from game_data import GRID_HEIGHT, GRID_WIDTH, Player, Creature
 from gameplay import advance_step
 
 if TYPE_CHECKING:
-    import main as game_module
+    import game as game_module
 
 # Constants for encounter grid
 ENCOUNTER_GRID_WIDTH = 3
@@ -165,10 +165,12 @@ class TeamArrangementScreen(Screen):
             # --- ACTIONS ---
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                 if self.swap_source is None:
+                    # Pick up
                     if self.selected_area == "pending":
                         if not game.gamestate.pending_recruits: return True
                     self.swap_source = (self.selected_area, self.selected_index)
                 else:
+                    # Swap/Place
                     area1, idx1 = self.swap_source
                     area2, idx2 = self.selected_area, self.selected_index
                     
@@ -200,7 +202,7 @@ class TeamArrangementScreen(Screen):
                     elif area1 == "grid" and area2 == "pending":
                         existing = player.creatures[idx1]
                         if isinstance(existing, Player):
-                            self.swap_source = None
+                            self.swap_source = None # Prevent Player -> Pending
                             return True
                             
                         if existing:
@@ -262,6 +264,7 @@ class TeamArrangementScreen(Screen):
         player = self._get_player(game)
         if not player: return
 
+        # --- GRID RENDER ---
         tile_size = game.sprite_manager.tile_size * 2
         grid_start_x = center_x - (1.5 * tile_size)
         grid_start_y = center_y - (2.0 * tile_size)
@@ -290,6 +293,7 @@ class TeamArrangementScreen(Screen):
                 if self.selected_area == "grid" and i == self.selected_index:
                      self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, grid_start_y + 3 * tile_size + 20, (255, 255, 255), self.font, centered=True)
 
+        # --- PENDING RENDER ---
         pending = game.gamestate.pending_recruits or []
         if pending:
             self.draw_text(screen, "PENDING RECRUITS", center_x, grid_start_y + 3 * tile_size + 50, (100, 200, 255), self.font, centered=True)
@@ -303,6 +307,7 @@ class TeamArrangementScreen(Screen):
                 
                 pygame.draw.rect(screen, (50, 50, 50), (x, y, tile_size, tile_size), 1)
                 
+                # Highlight
                 if self.selected_area == "pending" and i == self.selected_index:
                     pygame.draw.rect(screen, (255, 255, 0), (x, y, tile_size, tile_size), 2)
                 
