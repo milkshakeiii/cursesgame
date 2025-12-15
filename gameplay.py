@@ -129,11 +129,10 @@ def advance_step(
             target.current_convert = min(100, target.current_convert + 5)
             
             if target.current_convert >= 100:
-                # Find first empty slot
-                for i in range(len(player.creatures)):
-                    if player.creatures[i] is None:
-                        player.creatures[i] = target
-                        break
+                # Add to pending recruits for post-battle arrangement
+                if gamestate.pending_recruits is None:
+                    gamestate.pending_recruits = []
+                gamestate.pending_recruits.append(target)
                 
                 grid_index = grid_coords_to_index(target_x, target_y)
                 gamestate.active_encounter.enemy_team[grid_index] = None

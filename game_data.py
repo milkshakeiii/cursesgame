@@ -110,3 +110,8 @@ class GameState:
     max_stages: int = 20
     status: str = "playing"  # playing, won, lost
     biome_order: list[str] = None
+    pending_recruits: list[Creature] = None
+
+    def __post_init__(self):
+        if self.pending_recruits is None:
+            self.pending_recruits = []
