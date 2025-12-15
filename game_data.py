@@ -88,7 +88,7 @@ class Player(Placeable):
     current_health: int = 100
     player_class: str = "Adventurer"
     level: int = 1
-    creatures: list[Creature] = None
+    creatures: list[Optional[Creature]] = None
 
     def __post_init__(self):
         """Initialize mutable default values."""
@@ -97,7 +97,7 @@ class Player(Placeable):
         if self.passive_abilities is None:
             self.passive_abilities = []
         if self.creatures is None:
-            self.creatures = []
+            self.creatures = [None] * 8
 
 
 @dataclass

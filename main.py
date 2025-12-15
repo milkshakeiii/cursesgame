@@ -4,7 +4,7 @@ import random
 from game_data import GRID_HEIGHT, GRID_WIDTH
 from gameplay import generate_map
 from graphics import SpriteManager
-from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen, BiomeOrderScreen
+from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen, BiomeOrderScreen, TeamArrangementScreen
 
 TILE_SIZE = 24
 SCREEN_WIDTH = GRID_WIDTH * TILE_SIZE
@@ -25,6 +25,7 @@ class Game:
         self.win_screen = WinScreen()
         self.game_over_screen = GameOverScreen()
         self.biome_order_screen = BiomeOrderScreen()
+        self.team_arrangement_screen = TeamArrangementScreen()
         self.current_back_screen = self.main_menu
         self.current_front_screen = None
 

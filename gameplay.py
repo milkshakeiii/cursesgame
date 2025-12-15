@@ -83,9 +83,12 @@ def advance_step(
                         # Initialize encounter grids
                         placeable.player_team = [None] * 9
                         placeable.player_team[4] = player
+                        
                         creature_positions = [0, 1, 2, 3, 5, 6, 7, 8]
-                        for i, creature in enumerate(player.creatures):
-                            if i < len(creature_positions):
+                        # player.creatures is now fixed size 8, possibly containing None
+                        for i in range(min(len(player.creatures), 8)):
+                            creature = player.creatures[i]
+                            if creature is not None:
                                 placeable.player_team[creature_positions[i]] = creature
                         
                         placeable.enemy_team = [None] * 9
@@ -126,7 +129,12 @@ def advance_step(
             target.current_convert = min(100, target.current_convert + 5)
             
             if target.current_convert >= 100:
-                player.creatures.append(target)
+                # Find first empty slot
+                for i in range(len(player.creatures)):
+                    if player.creatures[i] is None:
+                        player.creatures[i] = target
+                        break
+                
                 grid_index = grid_coords_to_index(target_x, target_y)
                 gamestate.active_encounter.enemy_team[grid_index] = None
                 

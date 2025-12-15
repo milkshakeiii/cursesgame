@@ -95,6 +95,107 @@ class BiomeOrderScreen(Screen):
 
         self.draw_text(screen, "Press ENTER to begin", screen.get_width() // 2, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
 
+class TeamArrangementScreen(Screen):
+    """Screen for rearranging the player's team."""
+    def __init__(self):
+        self.font = pygame.font.SysFont("monospace", 20)
+        self.header_font = pygame.font.SysFont("monospace", 24, bold=True)
+        self.selected_index = 0 
+        self.swap_source_index = None
+        self.visual_to_logical = {0:0, 1:1, 2:2, 3:3, 5:4, 6:5, 7:6, 8:7}
+        self.logical_to_visual = {v:k for k,v in self.visual_to_logical.items()}
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                if self.swap_source_index is None:
+                    self.swap_source_index = self.selected_index
+                else:
+                    idx1 = self.swap_source_index
+                    idx2 = self.selected_index
+                    player = self._get_player(game)
+                    if player:
+                        player.creatures[idx1], player.creatures[idx2] = player.creatures[idx2], player.creatures[idx1]
+                    self.swap_source_index = None
+                return True
+            elif event.key == pygame.K_ESCAPE:
+                if self.swap_source_index is not None:
+                    self.swap_source_index = None
+                else:
+                    game.current_back_screen = game.map_view
+                return True
+            elif event.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN):
+                current_visual = self.logical_to_visual[self.selected_index]
+                col = current_visual % 3
+                row = current_visual // 3
+                
+                if event.key == pygame.K_LEFT: col = (col - 1) % 3
+                elif event.key == pygame.K_RIGHT: col = (col + 1) % 3
+                elif event.key == pygame.K_UP: row = (row - 1) % 3
+                elif event.key == pygame.K_DOWN: row = (row + 1) % 3
+                
+                new_visual = row * 3 + col
+                if new_visual == 4:
+                     if event.key == pygame.K_RIGHT: new_visual = 5
+                     elif event.key == pygame.K_LEFT: new_visual = 3
+                     elif event.key == pygame.K_UP: new_visual = 1
+                     elif event.key == pygame.K_DOWN: new_visual = 7
+                
+                self.selected_index = self.visual_to_logical[new_visual]
+                return True
+        return False
+
+    def _get_player(self, game):
+        for p in game.gamestate.placeables:
+            if isinstance(p, Player): return p
+        return None
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        screen.fill((0, 0, 0))
+        
+        center_x = screen.get_width() // 2
+        center_y = screen.get_height() // 2
+        
+        self.draw_text(screen, "TEAM ARRANGEMENT", center_x, 50, (255, 255, 0), self.header_font, centered=True)
+        self.draw_text(screen, "Arrow Keys: Move | Enter: Swap | ESC: Finish", center_x, screen.get_height() - 50, (150, 150, 150), self.font, centered=True)
+
+        player = self._get_player(game)
+        if not player: return
+
+        tile_size = game.sprite_manager.tile_size * 2
+        grid_start_x = center_x - (1.5 * tile_size)
+        grid_start_y = center_y - (1.5 * tile_size)
+
+        for visual_idx in range(9):
+            grid_x = visual_idx % 3
+            grid_y = visual_idx // 3
+            x = grid_start_x + grid_x * tile_size
+            y = grid_start_y + grid_y * tile_size
+            
+            pygame.draw.rect(screen, (50, 50, 50), (x, y, tile_size, tile_size), 1)
+            
+            if visual_idx == 4:
+                sprite = game.sprite_manager.get_sprite(player.symbol, player.color)
+                scaled = pygame.transform.scale(sprite, (tile_size, tile_size))
+                screen.blit(scaled, (x, y))
+            else:
+                logical_idx = self.visual_to_logical[visual_idx]
+                creature = player.creatures[logical_idx]
+                
+                if logical_idx == self.selected_index:
+                    pygame.draw.rect(screen, (255, 255, 0), (x, y, tile_size, tile_size), 2)
+                
+                if logical_idx == self.swap_source_index:
+                    pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_size-8, tile_size-8), 2)
+
+                if creature:
+                    sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
+                    scaled = pygame.transform.scale(sprite, (tile_size, tile_size))
+                    screen.blit(scaled, (x, y))
+                    
+                    if logical_idx == self.selected_index:
+                         self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, center_y + 150, (255, 255, 255), self.font, centered=True)
+
 class MainMenu(Screen):
     """Main menu screen."""
 
@@ -304,7 +405,7 @@ class EncounterScreen(Screen):
 
                     self.mode = EncounterMode.NORMAL
                     if game.gamestate.active_encounter is None:
-                        game.current_back_screen = game.map_view
+                        game.current_back_screen = game.team_arrangement_screen # Switch to arrangement screen
                     return True
                 elif event.key == pygame.K_ESCAPE:
                     self.mode = EncounterMode.NORMAL
