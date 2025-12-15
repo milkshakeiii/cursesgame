@@ -88,6 +88,7 @@ class MainMenu(Screen):
     def _select_option(self, game: "game_module.Game") -> None:
         selected = self.options[self.selected_index]
         if selected == "New Game":
+            game.reset_game()
             game.current_back_screen = game.map_view
         elif selected == "Options":
             pass
@@ -116,6 +117,44 @@ class MainMenu(Screen):
         self.draw_text(screen, instr1, center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
         self.draw_text(screen, instr2, center_x, screen.get_height() - 30, (150, 150, 150), self.small_font, centered=True)
 
+class WinScreen(Screen):
+    """Screen shown when the player wins."""
+    def __init__(self):
+        self.font = pygame.font.SysFont("monospace", 40, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 20)
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE, pygame.K_ESCAPE):
+                game.current_back_screen = game.main_menu
+                return True
+        return False
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        screen.fill((0, 0, 0))
+        self.draw_text(screen, "VICTORY!", screen.get_width() // 2, screen.get_height() // 3, (0, 255, 0), self.font, centered=True)
+        self.draw_text(screen, "You have defeated the Dragon King!", screen.get_width() // 2, screen.get_height() // 2, (200, 255, 200), self.small_font, centered=True)
+        self.draw_text(screen, "Press ENTER to return to menu", screen.get_width() // 2, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+
+class GameOverScreen(Screen):
+    """Screen shown when the player loses."""
+    def __init__(self):
+        self.font = pygame.font.SysFont("monospace", 40, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 20)
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE, pygame.K_ESCAPE):
+                game.current_back_screen = game.main_menu
+                return True
+        return False
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        screen.fill((0, 0, 0))
+        self.draw_text(screen, "GAME OVER", screen.get_width() // 2, screen.get_height() // 3, (255, 0, 0), self.font, centered=True)
+        self.draw_text(screen, "Your journey ends here.", screen.get_width() // 2, screen.get_height() // 2, (255, 200, 200), self.small_font, centered=True)
+        self.draw_text(screen, "Press ENTER to return to menu", screen.get_width() // 2, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+
 class MapView(Screen):
     """Screen where the player moves around the map."""
 
@@ -141,6 +180,15 @@ class MapView(Screen):
             if event.key in self.direction_map:
                 dx, dy = self.direction_map[event.key]
                 game.gamestate = advance_step(game.gamestate, ("move", dx, dy))
+                
+                # Check status
+                if game.gamestate.status == "won":
+                    game.current_back_screen = game.win_screen
+                    return True
+                elif game.gamestate.status == "lost":
+                    game.current_back_screen = game.game_over_screen
+                    return True
+
                 if game.gamestate.active_encounter is not None:
                     game.current_back_screen = game.encounter_start_screen
                 return True
@@ -159,6 +207,9 @@ class MapView(Screen):
         for placeable in game.gamestate.placeables or []:
             if isinstance(placeable, Player):
                 game.sprite_manager.draw(screen, placeable.x, placeable.y, placeable.symbol, placeable.color)
+        
+        # Draw HUD
+        self.draw_text(screen, f"Level: {game.gamestate.current_stage}/{game.gamestate.max_stages}", 10, 10, (255, 255, 255), self.font)
 
 class EncounterStartScreen(Screen):
     """Screen shown when the player first encounters something."""
@@ -211,6 +262,12 @@ class EncounterScreen(Screen):
                     target_x, target_y = self.target_selection_map[event.key]
                     action_type = "attack" if self.mode == EncounterMode.ATTACK else "convert"
                     game.gamestate = advance_step(game.gamestate, (action_type, target_x, target_y))
+                    
+                    # Check win condition (if encounter ended by winning boss fight)
+                    if game.gamestate.status == "won":
+                        game.current_back_screen = game.win_screen
+                        return True
+
                     self.mode = EncounterMode.NORMAL
                     if game.gamestate.active_encounter is None:
                         game.current_back_screen = game.map_view
@@ -253,11 +310,6 @@ class EncounterScreen(Screen):
                     game.current_back_screen = game.map_view
                     return True
                 elif event.key == pygame.K_ESCAPE:
-                    # In normal mode, ESC does nothing or quits?
-                    # Original code: if specific event doesn't handle, base class quits.
-                    # Original screens.py: elif ESC: Cancel action selection...
-                    # But for Normal mode, it fell through to default handling?
-                    # Let's return False to allow base class to handle quit if in Normal mode.
                     return False
 
         return False
@@ -298,8 +350,6 @@ class EncounterScreen(Screen):
         selected_entity = self._get_selected_entity(game)
         if selected_entity:
             side_label = "Ally" if self.selected_side == "player" else "Enemy"
-            # Special case for Player object which has no 'name' attr in some versions? 
-            # Check game_data.py: Player has name="Player" default.
             name = getattr(selected_entity, "name", "Unknown")
             
             self.draw_text(screen, f"{side_label}: {name}", 20, 60, (200, 200, 200), self.font)
@@ -398,11 +448,5 @@ class EncounterScreen(Screen):
             if entity:
                 grid_x = (i % 3) + x_offset
                 grid_y = i // 3
-                # Use sprite manager logic, but need to pass grid coordinates manually converted to pixels?
-                # SpriteManager.draw takes grid coordinates (x,y) and multiplies by tile_size.
-                # Here we are drawing at absolute pixel positions + offset.
-                # So we can't use SpriteManager.draw directly unless we trick it or add a method.
-                # Or just use get_sprite and blit manually.
-                
                 sprite = game.sprite_manager.get_sprite(entity.symbol, entity.color)
                 screen.blit(sprite, (start_x + grid_x * game.sprite_manager.tile_size, start_y + grid_y * game.sprite_manager.tile_size))

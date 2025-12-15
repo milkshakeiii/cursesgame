@@ -3,7 +3,7 @@ import pygame
 from game_data import GRID_HEIGHT, GRID_WIDTH
 from gameplay import generate_map
 from graphics import SpriteManager
-from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen
+from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen
 
 TILE_SIZE = 24
 SCREEN_WIDTH = GRID_WIDTH * TILE_SIZE
@@ -21,8 +21,13 @@ class Game:
         self.main_menu = MainMenu()
         self.encounter_start_screen = EncounterStartScreen()
         self.encounter_screen = EncounterScreen()
+        self.win_screen = WinScreen()
+        self.game_over_screen = GameOverScreen()
         self.current_back_screen = self.main_menu
         self.current_front_screen = None
+
+    def reset_game(self):
+        self.gamestate = generate_map()
 
     def current_screen(self) -> Screen:
         return self.current_front_screen or self.current_back_screen

@@ -25,6 +25,13 @@ class Terrain(Placeable):
 
     visible: bool = True
 
+@dataclass
+class Exit(Placeable):
+    """Represents the exit to the next level."""
+    visible: bool = True
+    symbol: str = ">"
+    color: tuple[int, int, int] = (255, 255, 255)
+
 
 @dataclass
 class Creature:
@@ -99,3 +106,6 @@ class GameState:
 
     placeables: list[Placeable]
     active_encounter: Optional[Encounter]
+    current_stage: int = 1
+    max_stages: int = 20
+    status: str = "playing"  # playing, won, lost
