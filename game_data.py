@@ -97,7 +97,7 @@ class Player(Placeable):
         if self.passive_abilities is None:
             self.passive_abilities = []
         if self.creatures is None:
-            self.creatures = [None] * 8
+            self.creatures = [None] * 9
 
 
 @dataclass

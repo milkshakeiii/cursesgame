@@ -81,15 +81,7 @@ def advance_step(
                     if isinstance(placeable, Encounter):
                         gamestate.active_encounter = placeable
                         # Initialize encounter grids
-                        placeable.player_team = [None] * 9
-                        placeable.player_team[4] = player
-                        
-                        creature_positions = [0, 1, 2, 3, 5, 6, 7, 8]
-                        # player.creatures is now fixed size 8, possibly containing None
-                        for i in range(min(len(player.creatures), 8)):
-                            creature = player.creatures[i]
-                            if creature is not None:
-                                placeable.player_team[creature_positions[i]] = creature
+                        placeable.player_team = list(player.creatures)
                         
                         placeable.enemy_team = [None] * 9
                         if placeable.creature:
@@ -129,7 +121,7 @@ def advance_step(
             target.current_convert = min(100, target.current_convert + 5)
             
             if target.current_convert >= 100:
-                # Add to pending recruits for post-battle arrangement
+                # Add to pending recruits
                 if gamestate.pending_recruits is None:
                     gamestate.pending_recruits = []
                 gamestate.pending_recruits.append(target)
@@ -173,6 +165,9 @@ def generate_map(current_player: Optional[Player] = None, stage: int = 1, biome_
         player.y = GRID_HEIGHT // 2
     else:
         player = Player(x=GRID_WIDTH // 2, y=GRID_HEIGHT // 2)
+        # Ensure player is in the team grid (center)
+        player.creatures[4] = player
+    
     placeables.append(player)
 
     # Terrain Generation

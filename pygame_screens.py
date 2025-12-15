@@ -103,17 +103,14 @@ class TeamArrangementScreen(Screen):
         self.selected_area = "grid" # "grid" or "pending"
         self.selected_index = 0 
         self.swap_source = None # (area, index)
-        self.visual_to_logical = {0:0, 1:1, 2:2, 3:3, 5:4, 6:5, 7:6, 8:7}
-        self.logical_to_visual = {v:k for k,v in self.visual_to_logical.items()}
 
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
         if event.type == pygame.KEYDOWN:
             # --- SELECTION & MOVEMENT ---
             if event.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN):
                 if self.selected_area == "grid":
-                    current_visual = self.logical_to_visual[self.selected_index]
-                    col = current_visual % 3
-                    row = current_visual // 3
+                    col = self.selected_index % 3
+                    row = self.selected_index // 3
                     
                     if event.key == pygame.K_LEFT: col = (col - 1) % 3
                     elif event.key == pygame.K_RIGHT: col = (col + 1) % 3
@@ -122,25 +119,18 @@ class TeamArrangementScreen(Screen):
                     elif event.key == pygame.K_DOWN: 
                         row = (row + 1) % 3
                         # If moving down from bottom row, go to pending if not empty
-                        if row == 0 and current_visual // 3 == 2 and game.gamestate.pending_recruits:
+                        if row == 0 and self.selected_index // 3 == 2 and game.gamestate.pending_recruits:
                             self.selected_area = "pending"
                             self.selected_index = 0
                             return True
                     
-                    new_visual = row * 3 + col
-                    if new_visual == 4: # Skip player
-                         if event.key == pygame.K_RIGHT: new_visual = 5
-                         elif event.key == pygame.K_LEFT: new_visual = 3
-                         elif event.key == pygame.K_UP: new_visual = 1
-                         elif event.key == pygame.K_DOWN: new_visual = 7
-                    
-                    self.selected_index = self.visual_to_logical[new_visual]
+                    self.selected_index = row * 3 + col
                 
                 elif self.selected_area == "pending":
                     count = len(game.gamestate.pending_recruits)
                     if count == 0:
                         self.selected_area = "grid"
-                        self.selected_index = 0
+                        self.selected_index = 7 # Bottom center default
                         return True
 
                     if event.key == pygame.K_LEFT: 
@@ -150,14 +140,13 @@ class TeamArrangementScreen(Screen):
                     elif event.key == pygame.K_UP:
                         # Go back to grid (bottom middle)
                         self.selected_area = "grid"
-                        self.selected_index = self.visual_to_logical[7] # Bottom center
+                        self.selected_index = 7
                 return True
 
             # --- ACTIONS ---
             elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                 if self.swap_source is None:
                     # Pick up
-                    # Validate selection exists if in pending? (Grid can pick up empty slot to place into)
                     if self.selected_area == "pending":
                         if not game.gamestate.pending_recruits: return True
                     self.swap_source = (self.selected_area, self.selected_index)
@@ -178,23 +167,28 @@ class TeamArrangementScreen(Screen):
                         recruit = pending[idx1]
                         existing = player.creatures[idx2]
                         
+                        # Prevent replacing Player
+                        if isinstance(existing, Player):
+                            self.swap_source = None
+                            return True
+
                         player.creatures[idx2] = recruit
                         if existing:
-                            # Swap: put existing back into pending (at same spot or append?)
-                            # Let's replace at same spot
                             pending[idx1] = existing
                         else:
-                            # Move: remove from pending
                             pending.pop(idx1)
-                            # Adjust selection if out of bounds
                             if self.selected_area == "pending" and self.selected_index >= len(pending):
                                 self.selected_index = max(0, len(pending) - 1)
                     
                     # 3. Grid -> Pending (Un-assign)
                     elif area1 == "grid" and area2 == "pending":
                         existing = player.creatures[idx1]
+                        # Prevent moving Player to pending
+                        if isinstance(existing, Player):
+                            self.swap_source = None
+                            return True
+                            
                         if existing:
-                            # Swap with targeted pending
                             recruit = pending[idx2]
                             player.creatures[idx1] = recruit
                             pending[idx2] = existing
@@ -208,25 +202,23 @@ class TeamArrangementScreen(Screen):
 
             elif event.key in (pygame.K_DELETE, pygame.K_BACKSPACE):
                 if self.selected_area == "grid":
-                    # Delete from team (Permanent loss?)
-                    # Or move to pending? User said "remove existing", "discard newly converted".
-                    # Let's assume Delete on Grid -> Move to Pending if space? Or just Delete?
-                    # "Option to remove existing creatures" usually means delete or bench.
-                    # Since we have a Pending list acting as a temp bench, let's just Delete for now or move to Pending.
-                    # Simplest: Delete permanently.
                     player = self._get_player(game)
+                    creature = player.creatures[self.selected_index]
+                    
+                    # Prevent deleting Player
+                    if isinstance(creature, Player):
+                        return True
+                        
                     player.creatures[self.selected_index] = None
-                    # If we were swapping this, cancel swap
                     if self.swap_source == ("grid", self.selected_index):
                         self.swap_source = None
                         
                 elif self.selected_area == "pending":
-                    # Discard recruit
                     if game.gamestate.pending_recruits:
                         game.gamestate.pending_recruits.pop(self.selected_index)
                         if self.selected_index >= len(game.gamestate.pending_recruits):
                             self.selected_index = max(0, len(game.gamestate.pending_recruits) - 1)
-                        if self.swap_source == ("pending", self.selected_index): # Invalidated
+                        if self.swap_source == ("pending", self.selected_index):
                              self.swap_source = None
                 return True
 
@@ -234,9 +226,6 @@ class TeamArrangementScreen(Screen):
                 if self.swap_source is not None:
                     self.swap_source = None
                 else:
-                    # Exit screen - Discard remaining pending?
-                    # Warning: "Press ESC again to discard X recruits and continue" ?
-                    # For simplicity: just discard.
                     game.gamestate.pending_recruits = []
                     game.current_back_screen = game.map_view
                 return True
@@ -262,38 +251,32 @@ class TeamArrangementScreen(Screen):
         # --- GRID RENDER ---
         tile_size = game.sprite_manager.tile_size * 2
         grid_start_x = center_x - (1.5 * tile_size)
-        grid_start_y = center_y - (2.0 * tile_size) # Shifted up slightly
+        grid_start_y = center_y - (2.0 * tile_size)
 
-        for visual_idx in range(9):
-            grid_x = visual_idx % 3
-            grid_y = visual_idx // 3
+        for i in range(9):
+            grid_x = i % 3
+            grid_y = i // 3
             x = grid_start_x + grid_x * tile_size
             y = grid_start_y + grid_y * tile_size
             
             pygame.draw.rect(screen, (50, 50, 50), (x, y, tile_size, tile_size), 1)
             
-            if visual_idx == 4:
-                sprite = game.sprite_manager.get_sprite(player.symbol, player.color)
+            creature = player.creatures[i]
+            
+            # Highlight
+            if self.selected_area == "grid" and i == self.selected_index:
+                pygame.draw.rect(screen, (255, 255, 0), (x, y, tile_size, tile_size), 2)
+            
+            if self.swap_source == ("grid", i):
+                pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_size-8, tile_size-8), 2)
+
+            if creature:
+                sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
                 scaled = pygame.transform.scale(sprite, (tile_size, tile_size))
                 screen.blit(scaled, (x, y))
-            else:
-                logical_idx = self.visual_to_logical[visual_idx]
-                creature = player.creatures[logical_idx]
                 
-                # Highlight
-                if self.selected_area == "grid" and logical_idx == self.selected_index:
-                    pygame.draw.rect(screen, (255, 255, 0), (x, y, tile_size, tile_size), 2)
-                
-                if self.swap_source == ("grid", logical_idx):
-                    pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_size-8, tile_size-8), 2)
-
-                if creature:
-                    sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
-                    scaled = pygame.transform.scale(sprite, (tile_size, tile_size))
-                    screen.blit(scaled, (x, y))
-                    
-                    if self.selected_area == "grid" and logical_idx == self.selected_index:
-                         self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, grid_start_y + 3 * tile_size + 20, (255, 255, 255), self.font, centered=True)
+                if self.selected_area == "grid" and i == self.selected_index:
+                     self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, grid_start_y + 3 * tile_size + 20, (255, 255, 255), self.font, centered=True)
 
         # --- PENDING RENDER ---
         pending = game.gamestate.pending_recruits or []
