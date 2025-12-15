@@ -61,6 +61,40 @@ class Screen(ABC):
             rect.topleft = (x, y)
         screen.blit(surface, rect)
 
+class BiomeOrderScreen(Screen):
+    """Screen shown before a new run to display biome order."""
+    def __init__(self):
+        self.font = pygame.font.SysFont("monospace", 30, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 20)
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                game.current_back_screen = game.map_view
+                return True
+        return False
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        screen.fill((0, 0, 0))
+        self.draw_text(screen, "UPCOMING JOURNEY", screen.get_width() // 2, 50, (255, 255, 0), self.font, centered=True)
+        
+        if game.gamestate.biome_order:
+            for i, biome in enumerate(game.gamestate.biome_order):
+                y_pos = 150 + i * 50
+                levels = f"Levels {i*5+1}-{i*5+5}"
+                biome_name = biome.replace("_", " ").title()
+                
+                # Biome color mapping for flair
+                color = (200, 200, 200)
+                if biome == "forest": color = (34, 139, 34)
+                elif biome == "plains": color = (218, 165, 32)
+                elif biome == "snow": color = (200, 240, 255)
+                elif biome == "underground": color = (100, 100, 100)
+                
+                self.draw_text(screen, f"{levels}: {biome_name}", screen.get_width() // 2, y_pos, color, self.small_font, centered=True)
+
+        self.draw_text(screen, "Press ENTER to begin", screen.get_width() // 2, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+
 class MainMenu(Screen):
     """Main menu screen."""
 
@@ -89,7 +123,7 @@ class MainMenu(Screen):
         selected = self.options[self.selected_index]
         if selected == "New Game":
             game.reset_game()
-            game.current_back_screen = game.map_view
+            game.current_back_screen = game.biome_order_screen
         elif selected == "Options":
             pass
         elif selected == "Exit":

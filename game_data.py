@@ -109,3 +109,4 @@ class GameState:
     current_stage: int = 1
     max_stages: int = 20
     status: str = "playing"  # playing, won, lost
+    biome_order: list[str] = None

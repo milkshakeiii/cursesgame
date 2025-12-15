@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import pygame
+import random
 from game_data import GRID_HEIGHT, GRID_WIDTH
 from gameplay import generate_map
 from graphics import SpriteManager
-from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen
+from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen, BiomeOrderScreen
 
 TILE_SIZE = 24
 SCREEN_WIDTH = GRID_WIDTH * TILE_SIZE
@@ -23,11 +24,14 @@ class Game:
         self.encounter_screen = EncounterScreen()
         self.win_screen = WinScreen()
         self.game_over_screen = GameOverScreen()
+        self.biome_order_screen = BiomeOrderScreen()
         self.current_back_screen = self.main_menu
         self.current_front_screen = None
 
     def reset_game(self):
-        self.gamestate = generate_map()
+        biomes = ["forest", "plains", "snow", "underground"]
+        random.shuffle(biomes)
+        self.gamestate = generate_map(stage=1, biome_order=biomes)
 
     def current_screen(self) -> Screen:
         return self.current_front_screen or self.current_back_screen

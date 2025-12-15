@@ -5,6 +5,28 @@ import random
 
 from game_data import GRID_HEIGHT, GRID_WIDTH, Creature, Encounter, Exit, GameState, Player, Terrain
 
+BIOME_DATA = {
+    "forest": {
+        "name": "Forest",
+        "terrain_colors": {",": (34, 139, 34), ".": (139, 69, 19)}, 
+        "monsters": [("Goblin", "g", (100, 200, 100)), ("Wolf", "w", (150, 150, 150)), ("Spider", "s", (50, 50, 50))]
+    },
+    "plains": {
+        "name": "Plains",
+        "terrain_colors": {",": (218, 165, 32), ".": (244, 164, 96)}, 
+        "monsters": [("Lion", "L", (255, 215, 0)), ("Eagle", "E", (255, 255, 255)), ("Bandit", "B", (100, 100, 255))]
+    },
+    "snow": {
+        "name": "Snowy Mountain",
+        "terrain_colors": {",": (240, 248, 255), ".": (176, 196, 222)}, 
+        "monsters": [("Yeti", "Y", (255, 255, 255)), ("Ice Wolf", "w", (200, 255, 255)), ("Frost Giant", "F", (100, 200, 255))]
+    },
+    "underground": {
+        "name": "Underground",
+        "terrain_colors": {",": (50, 50, 50), ".": (100, 100, 100)}, 
+        "monsters": [("Slime", "S", (0, 255, 0)), ("Bat", "b", (100, 100, 100)), ("Skeleton", "k", (200, 200, 200))]
+    }
+}
 
 def grid_coords_to_index(x: int, y: int) -> Optional[int]:
     """Convert 2D grid coordinates (0-2, 0-2) to 1D index (0-8)."""
@@ -74,7 +96,7 @@ def advance_step(
                     # Exit Trigger
                     elif isinstance(placeable, Exit):
                         if gamestate.current_stage < gamestate.max_stages:
-                            return generate_map(player, gamestate.current_stage + 1)
+                            return generate_map(player, gamestate.current_stage + 1, gamestate.biome_order)
                         # No exit on last stage (Boss handles win)
 
     elif action_type == "attack" and gamestate.active_encounter is not None:
@@ -121,8 +143,20 @@ def advance_step(
     return gamestate
 
 
-def generate_map(current_player: Optional[Player] = None, stage: int = 1) -> GameState:
+def generate_map(current_player: Optional[Player] = None, stage: int = 1, biome_order: list[str] = None) -> GameState:
     """Generate a map with terrain, encounters, and a player."""
+    
+    # Default biome order if not provided
+    if biome_order is None:
+        biome_order = ["forest", "plains", "snow", "underground"]
+
+    # Determine biome settings
+    biome_index = min((stage - 1) // 5, 3)
+    current_biome_key = biome_order[biome_index]
+    biome_info = BIOME_DATA[current_biome_key]
+    terrain_colors = biome_info["terrain_colors"]
+    monster_list = biome_info["monsters"]
+
     placeables = []
 
     # Player Setup
@@ -138,9 +172,9 @@ def generate_map(current_player: Optional[Player] = None, stage: int = 1) -> Gam
     for y in range(1, GRID_HEIGHT - 1):
         for x in range(1, GRID_WIDTH - 1):
             if (x + y) % 3 == 0:
-                placeables.append(Terrain(x=x, y=y, symbol=",", color=(50, 150, 50)))
+                placeables.append(Terrain(x=x, y=y, symbol=",", color=terrain_colors[","]))
             else:
-                placeables.append(Terrain(x=x, y=y, symbol=".", color=(150, 150, 150)))
+                placeables.append(Terrain(x=x, y=y, symbol=".", color=terrain_colors["."]))
 
     # Level Specific Generation
     if stage == 20:
@@ -161,14 +195,6 @@ def generate_map(current_player: Optional[Player] = None, stage: int = 1) -> Gam
 
         # Encounters
         encounter_positions = [(10, 10), (15, 12), (30, 8), (20, 15), (35, 18), (8, 20)]
-        creature_types = [
-            ("Goblin", "g", (255, 100, 100)),
-            ("Wolf", "w", (200, 200, 255)),
-            ("Slime", "s", (100, 255, 100)),
-            ("Bat", "b", (150, 150, 255)),
-            ("Spider", "p", (200, 100, 200)),
-            ("Rat", "r", (150, 150, 150)),
-        ]
         
         # Simple randomization: shift positions based on stage to make levels look slightly different
         for i, (base_x, base_y) in enumerate(encounter_positions):
@@ -180,14 +206,14 @@ def generate_map(current_player: Optional[Player] = None, stage: int = 1) -> Gam
             if abs(x - player.x) < 2 and abs(y - player.y) < 2: continue
             if x == GRID_WIDTH - 2 and y == GRID_HEIGHT // 2: continue
 
-            name, symbol, color = creature_types[(i + stage) % len(creature_types)]
+            name, symbol, color = monster_list[(i + stage) % len(monster_list)]
             creature = Creature(
                 name=name, symbol=symbol, color=color,
                 strength=8, dexterity=8, constitution=8,
                 active_abilities=[], passive_abilities=[],
                 max_health=100, current_health=100,
-                current_convert=0, level=stage, # creatures scale with stage level?
+                current_convert=0, level=stage, 
             )
             placeables.append(Encounter(x=x, y=y, symbol="#", color=(255, 255, 255), creature=creature))
 
-    return GameState(placeables=placeables, active_encounter=None, current_stage=stage)
+    return GameState(placeables=placeables, active_encounter=None, current_stage=stage, biome_order=biome_order)
