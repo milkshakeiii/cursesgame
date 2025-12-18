@@ -204,11 +204,19 @@ class TeamArrangementScreen(Screen):
                         if isinstance(existing, Player):
                             self.swap_source = None # Prevent Player -> Pending
                             return True
-                            
+
                         if existing:
                             recruit = pending[idx2]
                             player.creatures[idx1] = recruit
                             pending[idx2] = existing
+                        else:
+                            # Grid is empty, just place the recruit
+                            recruit = pending[idx2]
+                            player.creatures[idx1] = recruit
+                            pending.pop(idx2)
+                            # Move selection to the grid slot where the recruit was placed
+                            self.selected_area = "grid"
+                            self.selected_index = idx1
                     
                     # 4. Pending <-> Pending
                     elif area1 == "pending" and area2 == "pending":

@@ -15,8 +15,9 @@ class Game:
         self.gamestate = generate_map()
         self.running = True
         self.screen = screen
+        self.render_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.sprite_manager = SpriteManager(tile_size=TILE_SIZE)
-        
+
         # Initialize screens
         self.map_view = MapView()
         self.main_menu = MainMenu()
@@ -42,13 +43,20 @@ class Game:
         if is_fullscreen:
             self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         else:
-            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN)
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 
     def handle_event(self, event: pygame.event.Event) -> None:
         self.current_screen().handle_event(event, self)
 
     def render(self) -> None:
-        self.current_screen().render(self.screen, self)
+        self.current_screen().render(self.render_surface, self)
+        # Scale render surface to fit the screen
+        screen_size = self.screen.get_size()
+        if screen_size == (SCREEN_WIDTH, SCREEN_HEIGHT):
+            self.screen.blit(self.render_surface, (0, 0))
+        else:
+            scaled = pygame.transform.scale(self.render_surface, screen_size)
+            self.screen.blit(scaled, (0, 0))
 
 def main():
     pygame.init()
