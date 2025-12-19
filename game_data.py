@@ -125,9 +125,9 @@ class Player(Placeable):
     battle: int = 0  # Scales hero combat effectiveness
 
     # Base combat stats (heroes can use all 3 attack types)
-    base_melee_attack: int = 3
-    base_ranged_attack: int = 3
-    base_magic_attack: int = 3
+    base_melee_attack: int = 5
+    base_ranged_attack: int = 5
+    base_magic_attack: int = 5
     base_defense: int = 3
     base_dodge: int = 3
     base_resistance: int = 3

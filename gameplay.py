@@ -286,17 +286,31 @@ def resolve_team_attack(
         else:
             attacks = unit.attacks or []
 
+        # For 2x2 units, try both rows they occupy for melee attacks
+        is_2x2 = getattr(unit, "size", "1x1") == "2x2"
+        rows_to_try = [attacker_row]
+        if is_2x2 and attacker_row < 2:
+            rows_to_try.append(attacker_row + 1)
+
         # Select best attack (highest potential damage that can hit the target)
-        best_attack = select_best_attack(
-            encounter, unit, attacks, attacker_col, attacker_row,
-            target_col, target_row, is_player_turn
-        )
+        best_attack = None
+        best_attack_row = attacker_row
+        for try_row in rows_to_try:
+            candidate = select_best_attack(
+                encounter, unit, attacks, attacker_col, try_row,
+                target_col, target_row, is_player_turn
+            )
+            if candidate is not None:
+                # For 2x2 melee, prefer the row that can actually hit
+                if best_attack is None:
+                    best_attack = candidate
+                    best_attack_row = try_row
 
         if best_attack is None:
             continue
 
         targets = get_attack_targets(
-            encounter, best_attack, attacker_col, attacker_row, target_col, target_row, is_player_turn
+            encounter, best_attack, attacker_col, best_attack_row, target_col, target_row, is_player_turn
         )
 
         # Track if unit attacked for debuff clearing
@@ -558,7 +572,7 @@ def resolve_team_convert(
         # Get unit's attacks (conversion uses same targeting)
         if isinstance(unit, Player):
             attacks = get_hero_attacks(unit)
-            base_efficacy = 50  # Hero base efficacy
+            base_efficacy = 150  # Hero base efficacy
         else:
             attacks = unit.attacks or []
             base_efficacy = unit.conversion_efficacy
@@ -1043,7 +1057,7 @@ def generate_map(
         placeables.append(Exit(x=GRID_WIDTH - 2, y=GRID_HEIGHT // 2, symbol=">", color=(255, 255, 255), visible=True))
 
         # Encounters - each cell has independent chance based on terrain
-        encounter_chance = 0.02  # 2% chance per cell
+        encounter_chance = 0.03  # 3% chance per cell
 
         # Use seeded RNG for reproducible encounter placement
         encounter_rng = random.Random(seed + 999)

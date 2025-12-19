@@ -491,7 +491,7 @@ class TestEncounterDetection:
         """Test that stepping on an encounter sets active_encounter."""
         player = Player(10, 10)
         creature = create_test_creature()
-        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         gamestate = GameState(placeables=[player, encounter], active_encounter=None)
 
         # Move player onto encounter
@@ -551,7 +551,7 @@ class TestEncounterStartScreen:
         screen = EncounterStartScreen()
         game = create_test_game()
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
 
         # Test with Enter key
         game.gamestate.active_encounter = encounter
@@ -606,7 +606,7 @@ class TestEncounterScreen:
         screen = EncounterScreen()
         game = create_test_game()
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
 
         # Test with F key (Flee)
         game.gamestate.active_encounter = encounter
@@ -623,7 +623,7 @@ class TestEncounterScreen:
         # Set up an active encounter so the render method can work
         player = Player(10, 10)
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         setup_enemy_at_position(encounter, creature)
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
 
@@ -645,7 +645,7 @@ class TestMapViewEncounterIntegration:
         # Set up gamestate with player and encounter
         player = Player(10, 10)
         creature = create_test_creature()
-        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         game.gamestate = GameState(placeables=[player, encounter], active_encounter=None)
 
         # Move player onto encounter
@@ -720,7 +720,7 @@ class TestAttackAction:
         """Test that attack action reduces creature health."""
         player = Player(10, 10)
         creature = create_test_creature(health=100, max_health=100)
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         # Place player in player_team grid
         encounter.player_team = [None] * 9
         encounter.player_team[4] = player  # Middle position
@@ -737,7 +737,7 @@ class TestAttackAction:
         """Test that creature is removed when health reaches 0."""
         player = Player(10, 10)
         creature = create_test_creature(health=1, max_health=1)  # Very low HP
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         # Place player in player_team grid
         encounter.player_team = [None] * 9
         encounter.player_team[4] = player
@@ -759,7 +759,7 @@ class TestConvertAction:
         """Test that convert action increases conversion_progress."""
         player = Player(10, 10)
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         # Place player in player_team grid
         encounter.player_team = [None] * 9
         encounter.player_team[4] = player
@@ -777,7 +777,7 @@ class TestConvertAction:
         player = Player(10, 10)
         # Set conversion_progress very close to max_health
         creature = create_test_creature(max_health=10, conversion_progress=9)
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         # Place player in player_team grid
         encounter.player_team = [None] * 9
         encounter.player_team[4] = player
@@ -796,7 +796,7 @@ class TestConvertAction:
         """Test that conversion_progress doesn't exceed max_health."""
         player = Player(10, 10)
         creature = create_test_creature(max_health=10, conversion_progress=8)
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         # Place player in player_team grid
         encounter.player_team = [None] * 9
         encounter.player_team[4] = player
@@ -827,7 +827,7 @@ class TestEncounterScreenActions:
 
         # Set up encounter for the screen to work with
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         setup_enemy_at_position(encounter, creature)
         game.gamestate.active_encounter = encounter
 
@@ -844,7 +844,7 @@ class TestEncounterScreenActions:
 
         # Set up encounter for the screen to work with
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         setup_enemy_at_position(encounter, creature)
         game.gamestate.active_encounter = encounter
 
@@ -884,7 +884,7 @@ class TestEncounterGridSystem:
         """Test that stepping on encounter initializes the grids properly."""
         player = Player(10, 10)
         creature = create_test_creature()
-        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         gamestate = GameState(placeables=[player, encounter], active_encounter=None)
 
         # Move player onto encounter
@@ -893,7 +893,8 @@ class TestEncounterGridSystem:
         # Check that grids were initialized
         assert result.active_encounter is not None
         assert result.active_encounter.player_team[4] == player  # Player in middle
-        assert result.active_encounter.enemy_team[4] == creature  # Enemy in middle
+        # Enemy is randomly placed, just check it exists somewhere
+        assert creature in result.active_encounter.enemy_team
 
     def test_player_creatures_placed_in_grid(self):
         """Test that player's creatures are placed in the grid."""
@@ -906,7 +907,7 @@ class TestEncounterGridSystem:
         player.creatures[1] = ally2
 
         creature = create_test_creature()
-        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(11, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         gamestate = GameState(placeables=[player, encounter], active_encounter=None)
 
         # Move player onto encounter
@@ -922,7 +923,7 @@ class TestEncounterGridSystem:
         player = Player(10, 10)
         creature1 = create_test_creature(name="Enemy1", health=100, max_health=100)
         creature2 = create_test_creature(name="Enemy2", health=100, max_health=100)
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature1)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature1])
 
         # Place player in player_team grid
         encounter.player_team = [None] * 9
@@ -950,7 +951,7 @@ class TestEncounterGridSystem:
         """Test that encounter ends when all enemies are defeated."""
         player = Player(10, 10)
         creature = create_test_creature(health=1, max_health=1)  # Very low HP
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
 
         # Place player in player_team grid
         encounter.player_team = [None] * 9
@@ -984,7 +985,7 @@ class TestEncounterSelection:
 
         # Set up encounter
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         setup_enemy_at_position(encounter, creature)
         game.gamestate.active_encounter = encounter
 
@@ -1001,7 +1002,7 @@ class TestEncounterSelection:
 
         # Set up encounter
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         setup_enemy_at_position(encounter, creature)
         game.gamestate.active_encounter = encounter
 
@@ -1018,7 +1019,7 @@ class TestEncounterSelection:
 
         # Set up encounter
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         setup_enemy_at_position(encounter, creature)
         game.gamestate.active_encounter = encounter
 
@@ -1040,7 +1041,7 @@ class TestEncounterSelection:
 
         # Set up encounter
         creature = create_test_creature()
-        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creature=creature)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
         setup_enemy_at_position(encounter, creature)
         game.gamestate.active_encounter = encounter
 

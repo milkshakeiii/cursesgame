@@ -53,36 +53,43 @@ def calculate_potential_damage(
             attacker_col, attacker_row = grid_index_to_coords(idx)
 
         attacks = getattr(unit, "attacks", []) or []
+        is_2x2 = getattr(unit, "size", "1x1") == "2x2"
 
         # Select best attack that can hit the target
         best_damage = 0
         for attack in attacks:
-            targets = get_enemy_attack_targets(
-                encounter, attack, attacker_col, attacker_row, target_col, target_row
-            )
+            # For 2x2 units with melee, try both rows they occupy
+            rows_to_try = [attacker_row]
+            if is_2x2 and attack.attack_type == "melee" and attacker_row < 2:
+                rows_to_try.append(attacker_row + 1)
 
-            for target, _, _ in targets:
-                # Get effective damage
-                effective_damage = get_effective_attack_damage(
-                    unit, attack, encounter, is_player_side=False
-                )
-                modified_attack = Attack(
-                    attack_type=attack.attack_type,
-                    damage=effective_damage,
-                    range_min=attack.range_min,
-                    range_max=attack.range_max,
-                    abilities=attack.abilities,
+            for try_row in rows_to_try:
+                targets = get_enemy_attack_targets(
+                    encounter, attack, attacker_col, try_row, target_col, target_row
                 )
 
-                # Calculate damage considering target's Flying
-                defender_has_flying = check_flying(target)
-                attacker_debuffs = getattr(unit, "debuffs", {}) or {}
+                for target, _, _ in targets:
+                    # Get effective damage
+                    effective_damage = get_effective_attack_damage(
+                        unit, attack, encounter, is_player_side=False
+                    )
+                    modified_attack = Attack(
+                        attack_type=attack.attack_type,
+                        damage=effective_damage,
+                        range_min=attack.range_min,
+                        range_max=attack.range_max,
+                        abilities=attack.abilities,
+                    )
 
-                damage = calculate_damage(
-                    modified_attack, unit, target, attacker_debuffs, defender_has_flying
-                )
-                if damage > best_damage:
-                    best_damage = damage
+                    # Calculate damage considering target's Flying
+                    defender_has_flying = check_flying(target)
+                    attacker_debuffs = getattr(unit, "debuffs", {}) or {}
+
+                    damage = calculate_damage(
+                        modified_attack, unit, target, attacker_debuffs, defender_has_flying
+                    )
+                    if damage > best_damage:
+                        best_damage = damage
 
         total_damage += best_damage
 
