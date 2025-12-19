@@ -67,8 +67,8 @@ class Screen(ABC):
 class BiomeOrderScreen(Screen):
     """Screen shown before a new run to display biome order."""
     def __init__(self):
-        self.font = pygame.font.SysFont("monospace", 30, bold=True)
-        self.small_font = pygame.font.SysFont("monospace", 20)
+        self.font = pygame.font.SysFont("monospace", 22, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 14)
 
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
         if event.type == pygame.KEYDOWN:
@@ -101,8 +101,8 @@ class BiomeOrderScreen(Screen):
 class TeamArrangementScreen(Screen):
     """Screen for rearranging the player's team."""
     def __init__(self):
-        self.font = pygame.font.SysFont("monospace", 20)
-        self.header_font = pygame.font.SysFont("monospace", 24, bold=True)
+        self.font = pygame.font.SysFont("monospace", 14)
+        self.header_font = pygame.font.SysFont("monospace", 18, bold=True)
         self.selected_area = "grid" # "grid" or "pending"
         self.selected_index = 4 # Default to center
         self.swap_source = None # (area, index)
@@ -110,63 +110,68 @@ class TeamArrangementScreen(Screen):
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
         if event.type == pygame.KEYDOWN:
             # --- SELECTION & MOVEMENT ---
-            if event.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN, pygame.K_KP4, pygame.K_KP6, pygame.K_KP8, pygame.K_KP2, pygame.K_KP7, pygame.K_KP9, pygame.K_KP1, pygame.K_KP3):
+            nav_keys = (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN,
+                        pygame.K_KP4, pygame.K_KP6, pygame.K_KP8, pygame.K_KP2,
+                        pygame.K_KP7, pygame.K_KP9, pygame.K_KP1, pygame.K_KP3,
+                        pygame.K_j, pygame.K_l, pygame.K_i, pygame.K_COMMA,
+                        pygame.K_u, pygame.K_o, pygame.K_m, pygame.K_PERIOD)
+            if event.key in nav_keys:
                 if self.selected_area == "grid":
                     col = self.selected_index % 3
                     row = self.selected_index // 3
-                    
-                    if event.key in (pygame.K_LEFT, pygame.K_KP4): col = (col - 1) % 3
-                    elif event.key in (pygame.K_RIGHT, pygame.K_KP6): col = (col + 1) % 3
-                    elif event.key in (pygame.K_UP, pygame.K_KP8): row = (row - 1) % 3
-                    elif event.key in (pygame.K_DOWN, pygame.K_KP2):
+
+                    if event.key in (pygame.K_LEFT, pygame.K_KP4, pygame.K_j): col = (col - 1) % 3
+                    elif event.key in (pygame.K_RIGHT, pygame.K_KP6, pygame.K_l): col = (col + 1) % 3
+                    elif event.key in (pygame.K_UP, pygame.K_KP8, pygame.K_i): row = (row - 1) % 3
+                    elif event.key in (pygame.K_DOWN, pygame.K_KP2, pygame.K_COMMA):
                         row = (row + 1) % 3
                         if row == 0 and self.selected_index // 3 == 2 and game.gamestate.pending_recruits:
                             self.selected_area = "pending"
                             self.selected_index = 0
                             return True
-                    
+
                     # Diagonals
-                    elif event.key == pygame.K_KP7: # Up-Left
+                    elif event.key in (pygame.K_KP7, pygame.K_u): # Up-Left
                         col = (col - 1) % 3
                         row = (row - 1) % 3
-                    elif event.key == pygame.K_KP9: # Up-Right
+                    elif event.key in (pygame.K_KP9, pygame.K_o): # Up-Right
                         col = (col + 1) % 3
                         row = (row - 1) % 3
-                    elif event.key == pygame.K_KP1: # Down-Left
+                    elif event.key in (pygame.K_KP1, pygame.K_m): # Down-Left
                         col = (col - 1) % 3
                         row = (row + 1) % 3
                         if row == 0 and self.selected_index // 3 == 2 and game.gamestate.pending_recruits:
                             self.selected_area = "pending"
                             self.selected_index = 0
                             return True
-                    elif event.key == pygame.K_KP3: # Down-Right
+                    elif event.key in (pygame.K_KP3, pygame.K_PERIOD): # Down-Right
                         col = (col + 1) % 3
                         row = (row + 1) % 3
                         if row == 0 and self.selected_index // 3 == 2 and game.gamestate.pending_recruits:
                             self.selected_area = "pending"
                             self.selected_index = 0
                             return True
-                    
+
                     self.selected_index = row * 3 + col
-                
+
                 elif self.selected_area == "pending":
                     count = len(game.gamestate.pending_recruits)
                     if count == 0:
                         self.selected_area = "grid"
-                        self.selected_index = 7 
+                        self.selected_index = 7
                         return True
 
-                    if event.key in (pygame.K_LEFT, pygame.K_KP4): 
+                    if event.key in (pygame.K_LEFT, pygame.K_KP4, pygame.K_j):
                         self.selected_index = (self.selected_index - 1) % count
-                    elif event.key in (pygame.K_RIGHT, pygame.K_KP6): 
+                    elif event.key in (pygame.K_RIGHT, pygame.K_KP6, pygame.K_l):
                         self.selected_index = (self.selected_index + 1) % count
-                    elif event.key in (pygame.K_UP, pygame.K_KP8, pygame.K_KP7, pygame.K_KP9):
+                    elif event.key in (pygame.K_UP, pygame.K_KP8, pygame.K_KP7, pygame.K_KP9, pygame.K_i, pygame.K_u, pygame.K_o):
                         self.selected_area = "grid"
                         self.selected_index = 7
                 return True
 
             # --- ACTIONS ---
-            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE, pygame.K_k):
                 if self.swap_source is None:
                     # Pick up
                     if self.selected_area == "pending":
@@ -370,18 +375,18 @@ class MainMenu(Screen):
     def __init__(self):
         self.options = ["New Game", "Options", "Exit"]
         self.selected_index = 0
-        self.font = pygame.font.SysFont("monospace", 30, bold=True)
-        self.small_font = pygame.font.SysFont("monospace", 20)
+        self.font = pygame.font.SysFont("monospace", 22, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 14)
 
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
         if event.type == pygame.KEYDOWN:
-            if event.key in (pygame.K_UP, pygame.K_KP8):
+            if event.key in (pygame.K_UP, pygame.K_KP8, pygame.K_i):
                 self.selected_index = (self.selected_index - 1) % len(self.options)
                 return True
-            elif event.key in (pygame.K_DOWN, pygame.K_KP2):
+            elif event.key in (pygame.K_DOWN, pygame.K_KP2, pygame.K_COMMA):
                 self.selected_index = (self.selected_index + 1) % len(self.options)
                 return True
-            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_k):
                 self._select_option(game)
                 return True
             elif event.key == pygame.K_ESCAPE:
@@ -423,8 +428,8 @@ class MainMenu(Screen):
 class WinScreen(Screen):
     """Screen shown when the player wins."""
     def __init__(self):
-        self.font = pygame.font.SysFont("monospace", 40, bold=True)
-        self.small_font = pygame.font.SysFont("monospace", 20)
+        self.font = pygame.font.SysFont("monospace", 28, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 14)
 
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
         if event.type == pygame.KEYDOWN:
@@ -442,8 +447,8 @@ class WinScreen(Screen):
 class GameOverScreen(Screen):
     """Screen shown when the player loses."""
     def __init__(self):
-        self.font = pygame.font.SysFont("monospace", 40, bold=True)
-        self.small_font = pygame.font.SysFont("monospace", 20)
+        self.font = pygame.font.SysFont("monospace", 28, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 14)
 
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
         if event.type == pygame.KEYDOWN:
@@ -458,11 +463,369 @@ class GameOverScreen(Screen):
         self.draw_text(screen, "Your journey ends here.", screen.get_width() // 2, screen.get_height() // 2, (255, 200, 200), self.small_font, centered=True)
         self.draw_text(screen, "Press ENTER to return to menu", screen.get_width() // 2, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
 
+
+class BattleResultsScreen(Screen):
+    """Screen shown after a battle ends to display experience, tier ups, and recruits."""
+
+    def __init__(self):
+        self.font = pygame.font.SysFont("monospace", 20, bold=True)
+        self.medium_font = pygame.font.SysFont("monospace", 14, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 12)
+        self.battle_results = None  # Set when transitioning to this screen
+        self.recruits = []  # List of recruited creatures
+        self.scroll_offset = 0
+        self.max_scroll = 0
+
+    def set_results(self, battle_results: dict, recruits: list):
+        """Set the battle results data to display."""
+        self.battle_results = battle_results
+        self.recruits = recruits or []
+        self.scroll_offset = 0
+        # Calculate max scroll based on content
+        self._calculate_max_scroll()
+
+    def _calculate_max_scroll(self):
+        """Calculate maximum scroll offset based on content."""
+        if not self.battle_results:
+            self.max_scroll = 0
+            return
+
+        # Estimate content height
+        lines = 0
+        lines += 2  # Header
+        lines += len(self.battle_results.get("participants", [])) * 2
+        lines += 2  # Tier ups header
+        for tier_up in self.battle_results.get("tier_ups", []):
+            lines += 2 + len(tier_up.get("bonuses", []))
+        lines += 2  # Recruits header
+        lines += len(self.recruits) * 2
+
+        self.max_scroll = max(0, lines * 20 - 400)  # Rough estimate
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                # Check if player has stat points to allocate
+                player = None
+                for p in game.gamestate.placeables or []:
+                    if isinstance(p, Player):
+                        player = p
+                        break
+
+                if player and player.stat_points > 0:
+                    # Go to stat allocation screen
+                    game.current_back_screen = game.stat_allocation_screen
+                elif self.recruits:
+                    game.current_back_screen = game.team_arrangement_screen
+                else:
+                    game.current_back_screen = game.map_view
+                # Clear results
+                self.battle_results = None
+                self.recruits = []
+                return True
+            elif event.key == pygame.K_UP:
+                self.scroll_offset = max(0, self.scroll_offset - 30)
+                return True
+            elif event.key == pygame.K_DOWN:
+                self.scroll_offset = min(self.max_scroll, self.scroll_offset + 30)
+                return True
+        return False
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        screen.fill((20, 20, 30))
+        width, height = screen.get_width(), screen.get_height()
+
+        # Title
+        self.draw_text(screen, "BATTLE COMPLETE!", width // 2, 30, (100, 255, 100), self.font, centered=True)
+
+        if not self.battle_results:
+            self.draw_text(screen, "No battle data available", width // 2, height // 2, (150, 150, 150), self.small_font, centered=True)
+            self.draw_text(screen, "Press ENTER to continue", width // 2, height - 40, (150, 150, 150), self.small_font, centered=True)
+            return
+
+        y = 70 - self.scroll_offset
+        left_margin = 40
+
+        # === EXPERIENCE GAINS ===
+        if y > 0 and y < height:
+            self.draw_text(screen, "EXPERIENCE GAINED", left_margin, y, (255, 220, 100), self.medium_font)
+        y += 28
+
+        participants = self.battle_results.get("participants", [])
+        if not participants:
+            if y > 0 and y < height:
+                self.draw_text(screen, "  No creatures participated", left_margin, y, (150, 150, 150), self.small_font)
+            y += 22
+        else:
+            for p in participants:
+                if y > 0 and y < height:
+                    name = p["name"]
+                    before = p["battles_before"]
+                    after = p["battles_after"]
+                    self.draw_text(
+                        screen,
+                        f"  {name}: {before} -> {after} battles (+1)",
+                        left_margin, y, (200, 200, 200), self.small_font
+                    )
+                y += 20
+
+        y += 15
+
+        # === TIER UPS ===
+        tier_ups = self.battle_results.get("tier_ups", [])
+        if y > 0 and y < height:
+            self.draw_text(screen, "TIER UPGRADES", left_margin, y, (255, 180, 50), self.medium_font)
+        y += 28
+
+        if not tier_ups:
+            if y > 0 and y < height:
+                self.draw_text(screen, "  No tier upgrades this battle", left_margin, y, (150, 150, 150), self.small_font)
+            y += 22
+        else:
+            for tier_up in tier_ups:
+                name = tier_up["name"]
+                old_tier = tier_up["old_tier"]
+                new_tier = tier_up["new_tier"]
+                bonuses = tier_up.get("bonuses", [])
+
+                if y > 0 and y < height:
+                    self.draw_text(
+                        screen,
+                        f"  {name}: Tier {old_tier} -> Tier {new_tier}!",
+                        left_margin, y, (255, 255, 100), self.small_font
+                    )
+                y += 20
+
+                for bonus in bonuses:
+                    if y > 0 and y < height:
+                        self.draw_text(
+                            screen,
+                            f"    + {bonus}",
+                            left_margin, y, (150, 255, 150), self.small_font
+                        )
+                    y += 18
+
+                y += 8
+
+        y += 15
+
+        # === RECRUITS ===
+        if y > 0 and y < height:
+            self.draw_text(screen, "RECRUITED", left_margin, y, (100, 200, 255), self.medium_font)
+        y += 28
+
+        if not self.recruits:
+            if y > 0 and y < height:
+                self.draw_text(screen, "  No creatures converted", left_margin, y, (150, 150, 150), self.small_font)
+            y += 22
+        else:
+            for creature in self.recruits:
+                name = getattr(creature, "name", "Unknown")
+                hp = getattr(creature, "max_health", 0)
+                efficacy = getattr(creature, "conversion_efficacy", 50)
+
+                if y > 0 and y < height:
+                    self.draw_text(
+                        screen,
+                        f"  {name} - HP: {hp}, Efficacy: {efficacy}%",
+                        left_margin, y, (150, 220, 255), self.small_font
+                    )
+                y += 20
+
+                # Show attacks
+                attacks = getattr(creature, "attacks", [])
+                for attack in attacks[:2]:  # Limit to 2
+                    if y > 0 and y < height:
+                        atk_text = f"    {attack.attack_type}: {attack.damage}"
+                        if attack.abilities:
+                            atk_text += f" [{', '.join(attack.abilities[:2])}]"
+                        self.draw_text(screen, atk_text, left_margin, y, (120, 180, 200), self.small_font)
+                    y += 18
+
+                y += 8
+
+        # Footer
+        footer_y = height - 40
+        if self.recruits:
+            self.draw_text(
+                screen,
+                "Press ENTER to place recruits",
+                width // 2, footer_y, (200, 200, 100), self.small_font, centered=True
+            )
+        else:
+            self.draw_text(
+                screen,
+                "Press ENTER to continue",
+                width // 2, footer_y, (150, 150, 150), self.small_font, centered=True
+            )
+
+        # Scroll indicators
+        if self.scroll_offset > 0:
+            self.draw_text(screen, "^ Scroll Up ^", width // 2, 55, (100, 100, 100), self.small_font, centered=True)
+        if self.scroll_offset < self.max_scroll:
+            self.draw_text(screen, "v Scroll Down v", width // 2, height - 60, (100, 100, 100), self.small_font, centered=True)
+
+
+class StatAllocationScreen(Screen):
+    """Screen for allocating stat points after completing a floor."""
+
+    def __init__(self):
+        self.font = pygame.font.SysFont("monospace", 20, bold=True)
+        self.medium_font = pygame.font.SysFont("monospace", 16)
+        self.small_font = pygame.font.SysFont("monospace", 12)
+        self.selected_stat = 0  # 0=INT, 1=WIS, 2=CHA, 3=BATTLE
+        self.stats = ["intelligence", "wisdom", "charisma", "battle"]
+        self.stat_names = ["Intelligence", "Wisdom", "Charisma", "Battle"]
+        self.stat_descriptions = [
+            "Reduces tier requirements, boosts ranged attack/dodge",
+            "Buffs ally defenses, boosts melee attack/defense",
+            "Increases conversion efficacy, boosts magic attack/resistance",
+            "Scales hero combat effectiveness (attacks & defenses)",
+        ]
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            player = self._get_player(game)
+            if player is None:
+                return False
+
+            if event.key in (pygame.K_UP, pygame.K_KP8, pygame.K_i):
+                self.selected_stat = (self.selected_stat - 1) % len(self.stats)
+                return True
+            elif event.key in (pygame.K_DOWN, pygame.K_KP2, pygame.K_COMMA):
+                self.selected_stat = (self.selected_stat + 1) % len(self.stats)
+                return True
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE, pygame.K_k):
+                # Allocate a point to selected stat
+                if player.stat_points > 0:
+                    stat = self.stats[self.selected_stat]
+                    setattr(player, stat, getattr(player, stat) + 1)
+                    player.stat_points -= 1
+                return True
+            elif event.key == pygame.K_ESCAPE:
+                # Done allocating - check if we need to advance to next floor
+                if game.gamestate.pending_next_stage:
+                    from gameplay import generate_map
+                    game.gamestate.pending_next_stage = False
+                    game.gamestate = generate_map(
+                        player,
+                        game.gamestate.current_stage + 1,
+                        game.gamestate.biome_order,
+                        game.gamestate.run_seed,
+                    )
+                    game.current_back_screen = game.map_view
+                elif game.gamestate.pending_recruits:
+                    game.current_back_screen = game.team_arrangement_screen
+                else:
+                    game.current_back_screen = game.map_view
+                return True
+        return False
+
+    def _get_player(self, game: "game_module.Game") -> Optional[Player]:
+        for p in game.gamestate.placeables or []:
+            if isinstance(p, Player):
+                return p
+        return None
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        screen.fill((20, 20, 40))
+        width, height = screen.get_width(), screen.get_height()
+        center_x = width // 2
+
+        player = self._get_player(game)
+        if player is None:
+            return
+
+        # Title
+        self.draw_text(screen, "LEVEL COMPLETE!", center_x, 40, (100, 255, 100), self.font, centered=True)
+
+        # Stat points available
+        points_color = (255, 255, 100) if player.stat_points > 0 else (150, 150, 150)
+        self.draw_text(
+            screen,
+            f"Stat Points Available: {player.stat_points}",
+            center_x, 90, points_color, self.medium_font, centered=True
+        )
+
+        # Instructions
+        self.draw_text(
+            screen,
+            "UP/DOWN to select, ENTER to allocate, ESC when done",
+            center_x, 130, (150, 150, 150), self.small_font, centered=True
+        )
+
+        # Stat options
+        start_y = 170
+        for i, (stat, name, desc) in enumerate(zip(self.stats, self.stat_names, self.stat_descriptions)):
+            y = start_y + i * 80
+            current_val = getattr(player, stat)
+
+            # Highlight selected
+            if i == self.selected_stat:
+                # Draw selection box
+                box_rect = pygame.Rect(center_x - 200, y - 10, 400, 70)
+                pygame.draw.rect(screen, (60, 60, 100), box_rect)
+                pygame.draw.rect(screen, (100, 150, 255), box_rect, 2)
+                name_color = (255, 255, 255)
+                val_color = (100, 255, 100)
+            else:
+                name_color = (180, 180, 180)
+                val_color = (150, 200, 150)
+
+            # Stat name and value
+            self.draw_text(screen, name, center_x - 180, y + 5, name_color, self.medium_font)
+            self.draw_text(screen, str(current_val), center_x + 150, y + 5, val_color, self.medium_font)
+
+            # Description
+            self.draw_text(screen, desc, center_x, y + 35, (120, 120, 150), self.small_font, centered=True)
+
+        # Show stat effects
+        y = start_y + len(self.stats) * 80 + 20
+        self.draw_text(screen, "Current Bonuses:", center_x, y, (200, 200, 100), self.small_font, centered=True)
+        y += 25
+
+        # INT bonuses
+        int_tier_reduction = player.intelligence // 5
+        self.draw_text(
+            screen,
+            f"INT: -{int_tier_reduction} tier requirements",
+            center_x, y, (150, 150, 200), self.small_font, centered=True
+        )
+        y += 20
+
+        # WIS bonuses
+        wis_ally_bonus = player.wisdom // 4
+        self.draw_text(
+            screen,
+            f"WIS: +{wis_ally_bonus} ally defenses",
+            center_x, y, (150, 150, 200), self.small_font, centered=True
+        )
+        y += 20
+
+        # CHA bonuses
+        cha_efficacy_mult = 1 + 0.10 * (player.charisma // 4)
+        self.draw_text(
+            screen,
+            f"CHA: x{cha_efficacy_mult:.1f} conversion efficacy",
+            center_x, y, (150, 150, 200), self.small_font, centered=True
+        )
+        y += 20
+
+        # Battle bonuses (scales other stats' combat effectiveness)
+        battle_scale = int((0.25 + 0.05 * player.battle) * 100)
+        self.draw_text(
+            screen,
+            f"Battle: {battle_scale}% stat effectiveness in combat",
+            center_x, y, (150, 150, 200), self.small_font, centered=True
+        )
+
+
 class MapView(Screen):
     """Screen where the player moves around the map."""
 
     def __init__(self):
         self.direction_map = {
+            # Numpad
             pygame.K_KP4: (-1, 0),
             pygame.K_KP6: (1, 0),
             pygame.K_KP8: (0, -1),
@@ -471,25 +834,40 @@ class MapView(Screen):
             pygame.K_KP9: (1, -1),
             pygame.K_KP1: (-1, 1),
             pygame.K_KP3: (1, 1),
+            # Arrow keys
             pygame.K_LEFT: (-1, 0),
             pygame.K_RIGHT: (1, 0),
             pygame.K_UP: (0, -1),
-            pygame.K_DOWN: (0, 1)
+            pygame.K_DOWN: (0, 1),
+            # Alternative numpad (uio/jkl/m,.)
+            pygame.K_u: (-1, -1),
+            pygame.K_i: (0, -1),
+            pygame.K_o: (1, -1),
+            pygame.K_j: (-1, 0),
+            pygame.K_l: (1, 0),
+            pygame.K_m: (-1, 1),
+            pygame.K_COMMA: (0, 1),
+            pygame.K_PERIOD: (1, 1),
         }
-        self.font = pygame.font.SysFont("monospace", 20)
+        self.font = pygame.font.SysFont("monospace", 14)
 
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
         if event.type == pygame.KEYDOWN:
             if event.key in self.direction_map:
                 dx, dy = self.direction_map[event.key]
                 game.gamestate = advance_step(game.gamestate, ("move", dx, dy))
-                
+
                 # Check status
                 if game.gamestate.status == "won":
                     game.current_back_screen = game.win_screen
                     return True
                 elif game.gamestate.status == "lost":
                     game.current_back_screen = game.game_over_screen
+                    return True
+
+                # Check if player used exit (pending floor advancement)
+                if game.gamestate.pending_next_stage:
+                    game.current_back_screen = game.stat_allocation_screen
                     return True
 
                 if game.gamestate.active_encounter is not None:
@@ -532,8 +910,8 @@ class EncounterStartScreen(Screen):
     """Screen shown when the player first encounters something."""
 
     def __init__(self):
-        self.font = pygame.font.SysFont("monospace", 30, bold=True)
-        self.small_font = pygame.font.SysFont("monospace", 20)
+        self.font = pygame.font.SysFont("monospace", 22, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 14)
 
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
         if event.type == pygame.KEYDOWN:
@@ -559,19 +937,22 @@ class EncounterScreen(Screen):
         self.selected_side = "enemy"  # "player" or "enemy"
         self.selected_index = 4  # Index 0-8 in the grid (default to middle)
         self.move_source_idx = None  # Index of unit being moved
-        self.font = pygame.font.SysFont("monospace", 20)
-        self.small_font = pygame.font.SysFont("monospace", 16)
-        self.header_font = pygame.font.SysFont("monospace", 24, bold=True)
+        self.font = pygame.font.SysFont("monospace", 14)
+        self.small_font = pygame.font.SysFont("monospace", 12)
+        self.header_font = pygame.font.SysFont("monospace", 18, bold=True)
         self.target_selection_map = {
-            pygame.K_KP7: (0, 0), pygame.K_7: (0, 0),
-            pygame.K_KP8: (1, 0), pygame.K_8: (1, 0),
-            pygame.K_KP9: (2, 0), pygame.K_9: (2, 0),
-            pygame.K_KP4: (0, 1), pygame.K_4: (0, 1),
-            pygame.K_KP5: (1, 1), pygame.K_5: (1, 1),
-            pygame.K_KP6: (2, 1), pygame.K_6: (2, 1),
-            pygame.K_KP1: (0, 2), pygame.K_1: (0, 2),
-            pygame.K_KP2: (1, 2), pygame.K_2: (1, 2),
-            pygame.K_KP3: (2, 2), pygame.K_3: (2, 2),
+            # Numpad keys
+            pygame.K_KP7: (0, 0), pygame.K_KP8: (1, 0), pygame.K_KP9: (2, 0),
+            pygame.K_KP4: (0, 1), pygame.K_KP5: (1, 1), pygame.K_KP6: (2, 1),
+            pygame.K_KP1: (0, 2), pygame.K_KP2: (1, 2), pygame.K_KP3: (2, 2),
+            # Number row keys
+            pygame.K_7: (0, 0), pygame.K_8: (1, 0), pygame.K_9: (2, 0),
+            pygame.K_4: (0, 1), pygame.K_5: (1, 1), pygame.K_6: (2, 1),
+            pygame.K_1: (0, 2), pygame.K_2: (1, 2), pygame.K_3: (2, 2),
+            # Alternative keyboard numpad (uio/jkl/m,.)
+            pygame.K_u: (0, 0), pygame.K_i: (1, 0), pygame.K_o: (2, 0),
+            pygame.K_j: (0, 1), pygame.K_k: (1, 1), pygame.K_l: (2, 1),
+            pygame.K_m: (0, 2), pygame.K_COMMA: (1, 2), pygame.K_PERIOD: (2, 2),
         }
 
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
@@ -589,7 +970,17 @@ class EncounterScreen(Screen):
 
                     self.mode = EncounterMode.NORMAL
                     if game.gamestate.active_encounter is None:
-                        game.current_back_screen = game.team_arrangement_screen # Switch to arrangement screen
+                        # Battle ended - show results screen first
+                        if game.gamestate.last_battle_results:
+                            game.battle_results_screen.set_results(
+                                game.gamestate.last_battle_results,
+                                game.gamestate.pending_recruits
+                            )
+                            game.current_back_screen = game.battle_results_screen
+                        elif game.gamestate.pending_recruits:
+                            game.current_back_screen = game.team_arrangement_screen
+                        else:
+                            game.current_back_screen = game.map_view
                     return True
                 elif event.key == pygame.K_ESCAPE:
                     self.mode = EncounterMode.NORMAL
@@ -652,7 +1043,7 @@ class EncounterScreen(Screen):
                 elif event.key == pygame.K_c:
                     self.mode = EncounterMode.CONVERT
                     return True
-                elif event.key == pygame.K_m:
+                elif event.key == pygame.K_v:
                     self.mode = EncounterMode.SELECTING_MOVE_SOURCE
                     return True
                 elif event.key == pygame.K_q:
@@ -697,8 +1088,8 @@ class EncounterScreen(Screen):
 
         # Draw Vertical Divider
         pygame.draw.line(screen, (100, 100, 100), (half_width, 0), (half_width, height))
-        # Draw Horizontal Divider (Right Side)
-        pygame.draw.line(screen, (100, 100, 100), (half_width, half_height), (width, half_height))
+        # Draw Horizontal Divider (Both Sides)
+        pygame.draw.line(screen, (100, 100, 100), (0, half_height), (width, half_height))
 
         # --- INFO PANEL (Left) ---
         self.draw_text(screen, "BATTLE INFO", 20, 20, (255, 255, 0), self.header_font)
@@ -720,25 +1111,25 @@ class EncounterScreen(Screen):
             self.draw_text(screen, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", 20, 110, hp_color, self.font)
 
             # Defense stats
-            y_offset = 135
+            y_offset = 128
             defense = getattr(selected_entity, "defense", getattr(selected_entity, "base_defense", 0))
             dodge = getattr(selected_entity, "dodge", getattr(selected_entity, "base_dodge", 0))
             resistance = getattr(selected_entity, "resistance", getattr(selected_entity, "base_resistance", 0))
             self.draw_text(screen, f"DEF:{defense} DOD:{dodge} RES:{resistance}", 20, y_offset, (150, 200, 150), self.small_font)
-            y_offset += 22
+            y_offset += 16
 
             # Conversion progress (for enemies)
             if hasattr(selected_entity, "conversion_progress"):
                 progress = getattr(selected_entity, "conversion_progress", 0)
                 max_conv = selected_entity.max_health
                 self.draw_text(screen, f"Convert: {progress}/{max_conv}", 20, y_offset, (150, 150, 255), self.small_font)
-                y_offset += 22
+                y_offset += 16
 
             # Attacks
             attacks = getattr(selected_entity, "attacks", [])
             if attacks:
                 self.draw_text(screen, "Attacks:", 20, y_offset, (255, 200, 100), self.small_font)
-                y_offset += 20
+                y_offset += 14
                 for attack in attacks[:3]:  # Limit display
                     atk_text = f"  {attack.attack_type}: {attack.damage}"
                     if attack.range_min and attack.range_max:
@@ -746,25 +1137,25 @@ class EncounterScreen(Screen):
                     if attack.abilities:
                         atk_text += f" [{', '.join(attack.abilities[:2])}]"
                     self.draw_text(screen, atk_text, 20, y_offset, (200, 180, 100), self.small_font)
-                    y_offset += 18
+                    y_offset += 14
 
             # Abilities
             abilities = getattr(selected_entity, "abilities", [])
             if abilities:
                 self.draw_text(screen, "Abilities:", 20, y_offset, (100, 200, 255), self.small_font)
-                y_offset += 20
+                y_offset += 14
                 for ability in abilities[:3]:  # Limit display
                     self.draw_text(screen, f"  {ability}", 20, y_offset, (150, 200, 255), self.small_font)
-                    y_offset += 18
+                    y_offset += 14
 
             # Debuffs
             debuffs = getattr(selected_entity, "debuffs", {})
             if debuffs:
                 self.draw_text(screen, "Debuffs:", 20, y_offset, (255, 100, 100), self.small_font)
-                y_offset += 20
+                y_offset += 14
                 for debuff, stacks in debuffs.items():
                     self.draw_text(screen, f"  {debuff} x{stacks}", 20, y_offset, (255, 150, 150), self.small_font)
-                    y_offset += 18
+                    y_offset += 14
         else:
             self.draw_text(screen, "No selection / Empty slot", 20, 85, (150, 150, 150), self.font)
 
@@ -806,19 +1197,54 @@ class EncounterScreen(Screen):
             instructions = [("Select adjacent square:", (100, 255, 100)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
         elif self.mode in (EncounterMode.SELECTING_ALLY, EncounterMode.SELECTING_ENEMY):
             target = "ALLY" if self.mode == EncounterMode.SELECTING_ALLY else "ENEMY"
-            instructions = [(f"Select {target}:", (255, 255, 100)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
+            instructions = [(f"Inspect {target}:", (255, 255, 100)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
         else:
             instructions = [
                 ("[A] Attack", (200, 200, 200)),
                 ("[C] Convert", (200, 200, 200)),
-                ("[M] Move unit", (200, 200, 200)),
-                ("[Q] Select Ally", (200, 200, 200)),
-                ("[E] Select Enemy", (200, 200, 200)),
+                ("[V] Move unit", (200, 200, 200)),
+                ("[Q] Inspect Ally", (200, 200, 200)),
+                ("[E] Inspect Enemy", (200, 200, 200)),
                 ("[F] Flee", (200, 200, 200))
             ]
 
         for i, (text, color) in enumerate(instructions):
             self.draw_text(screen, text, action_x, action_y + 40 + i * 25, color, self.font)
+
+        # --- COMBAT LOG (Left Bottom) ---
+        log_x = 10
+        log_y = half_height + 10
+        self.draw_text(screen, "COMBAT LOG", log_x, log_y, (255, 255, 0), self.header_font)
+
+        combat_log = getattr(game.gamestate.active_encounter, "combat_log", []) or []
+        # Show most recent entries that fit (scroll from bottom)
+        log_line_height = 16
+        max_lines = (height - half_height - 50) // log_line_height
+        recent_log = combat_log[-max_lines:] if len(combat_log) > max_lines else combat_log
+
+        log_y += 30
+        for entry in recent_log:
+            # Color code different log entry types
+            if entry.startswith("---"):
+                color = (150, 150, 150)  # Turn markers
+            elif "defeated" in entry:
+                color = (255, 100, 100)  # Deaths
+            elif "joins" in entry:
+                color = (100, 255, 100)  # Recruits
+            elif "converts" in entry:
+                color = (150, 150, 255)  # Conversion
+            elif "evades" in entry:
+                color = (255, 255, 100)  # Evasion
+            elif "heals" in entry:
+                color = (100, 255, 150)  # Healing
+            else:
+                color = (200, 200, 200)  # Default
+
+            # Truncate long entries
+            max_chars = (half_width - 20) // 7  # Approximate char width
+            display_entry = entry[:max_chars] if len(entry) > max_chars else entry
+            self.draw_text(screen, display_entry, log_x, log_y, color, self.small_font)
+            log_y += log_line_height
 
     def _render_highlights(self, screen: pygame.Surface, game: "game_module.Game", start_x: int, start_y: int, tile_w: int, tile_h: int):
         # Create a transparent surface for highlights

@@ -198,35 +198,42 @@ def calculate_guardian_bonus(
     """Calculate defense bonuses from adjacent Guardian units.
 
     Guardian: this unit adds 50% of its defense and dodge to orthogonally adjacent allies.
+    Deduplicates 2x2 units that occupy multiple adjacent slots.
 
     Returns dict with 'defense' and 'dodge' bonus values.
     """
     bonuses = {"defense": 0, "dodge": 0}
     team = encounter.player_team if is_player_side else encounter.enemy_team
 
-    # Find this unit's index
-    unit_idx = None
+    # Find all indices this unit occupies (for 2x2 units)
+    unit_indices = set()
     for idx, u in enumerate(team or []):
         if u is unit:
-            unit_idx = idx
-            break
+            unit_indices.add(idx)
 
-    if unit_idx is None:
+    if not unit_indices:
         return bonuses
 
-    row, col = unit_idx // 3, unit_idx % 3
-    adjacent_indices = []
-    for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-        nr, nc = row + dr, col + dc
-        if 0 <= nr < 3 and 0 <= nc < 3:
-            adjacent_indices.append(nr * 3 + nc)
+    # Get all adjacent indices (for all slots the unit occupies)
+    adjacent_indices = set()
+    for unit_idx in unit_indices:
+        row, col = unit_idx // 3, unit_idx % 3
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nr, nc = row + dr, col + dc
+            if 0 <= nr < 3 and 0 <= nc < 3:
+                adj_idx = nr * 3 + nc
+                # Don't count own slots as adjacent
+                if adj_idx not in unit_indices:
+                    adjacent_indices.add(adj_idx)
 
-    # Check each adjacent unit for Guardian ability
+    # Check each adjacent unit for Guardian ability (deduplicate by id)
+    processed_guardians = set()
     for adj_idx in adjacent_indices:
         adj_unit = team[adj_idx] if team else None
-        if adj_unit is not None:
+        if adj_unit is not None and id(adj_unit) not in processed_guardians:
             adj_abilities = getattr(adj_unit, "abilities", []) or []
             if "Guardian" in adj_abilities:
+                processed_guardians.add(id(adj_unit))
                 bonuses["defense"] += int(getattr(adj_unit, "defense", 0) * 0.5)
                 bonuses["dodge"] += int(getattr(adj_unit, "dodge", 0) * 0.5)
 
@@ -241,35 +248,42 @@ def calculate_protector_bonus(
     """Calculate resistance bonus from adjacent Protector units.
 
     Protector: this unit adds 50% of its resistance to orthogonally adjacent allies.
+    Deduplicates 2x2 units that occupy multiple adjacent slots.
 
     Returns resistance bonus value.
     """
     bonus = 0
     team = encounter.player_team if is_player_side else encounter.enemy_team
 
-    # Find this unit's index
-    unit_idx = None
+    # Find all indices this unit occupies (for 2x2 units)
+    unit_indices = set()
     for idx, u in enumerate(team or []):
         if u is unit:
-            unit_idx = idx
-            break
+            unit_indices.add(idx)
 
-    if unit_idx is None:
+    if not unit_indices:
         return bonus
 
-    row, col = unit_idx // 3, unit_idx % 3
-    adjacent_indices = []
-    for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-        nr, nc = row + dr, col + dc
-        if 0 <= nr < 3 and 0 <= nc < 3:
-            adjacent_indices.append(nr * 3 + nc)
+    # Get all adjacent indices (for all slots the unit occupies)
+    adjacent_indices = set()
+    for unit_idx in unit_indices:
+        row, col = unit_idx // 3, unit_idx % 3
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nr, nc = row + dr, col + dc
+            if 0 <= nr < 3 and 0 <= nc < 3:
+                adj_idx = nr * 3 + nc
+                # Don't count own slots as adjacent
+                if adj_idx not in unit_indices:
+                    adjacent_indices.add(adj_idx)
 
-    # Check each adjacent unit for Protector ability
+    # Check each adjacent unit for Protector ability (deduplicate by id)
+    processed_protectors = set()
     for adj_idx in adjacent_indices:
         adj_unit = team[adj_idx] if team else None
-        if adj_unit is not None:
+        if adj_unit is not None and id(adj_unit) not in processed_protectors:
             adj_abilities = getattr(adj_unit, "abilities", []) or []
             if "Protector" in adj_abilities:
+                processed_protectors.add(id(adj_unit))
                 bonus += int(getattr(adj_unit, "resistance", 0) * 0.5)
 
     return bonus

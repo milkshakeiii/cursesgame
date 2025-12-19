@@ -30,7 +30,16 @@ from abilities import (
     process_healing_ability,
     get_effective_defense,
     get_effective_attack_damage,
+    calculate_pack_hunter_bonus,
 )
+from experience import end_battle_experience, award_floor_stats
+
+
+def add_combat_log(encounter: Encounter, message: str) -> None:
+    """Add a message to the encounter's combat log."""
+    if encounter is not None and encounter.combat_log is not None:
+        encounter.combat_log.append(message)
+
 
 BIOME_DATA = {
     "forest": {
@@ -116,6 +125,9 @@ def advance_step(
     gamestate: GameState, action: Optional[tuple[str, ...]]
 ) -> GameState:
     """Advance the game by one step based on the player action."""
+    # Import here to avoid circular imports
+    from ai import execute_enemy_turn
+
     if action is None:
         return gamestate
 
@@ -145,41 +157,80 @@ def advance_step(
                     # Encounter Trigger
                     if isinstance(placeable, Encounter):
                         gamestate.active_encounter = placeable
-                        # Initialize encounter grids
-                        placeable.player_team = list(player.creatures)
-                        # Place player in the center slot
-                        placeable.player_team[4] = player
+                        # Use initialize_encounter for proper setup
+                        initialize_encounter(placeable, player)
 
-                        placeable.enemy_team = [None] * 9
-                        if placeable.creature:
-                            placeable.enemy_team[4] = placeable.creature
+                        # If enemy has Haste, execute their turn first
+                        if placeable.current_turn == "enemy":
+                            execute_enemy_turn(gamestate)
+                            placeable.current_turn = "player"
+                            check_encounter_end(gamestate)
                         break
-                    
+
                     # Exit Trigger
                     elif isinstance(placeable, Exit):
                         if gamestate.current_stage < gamestate.max_stages:
-                            return generate_map(
-                                player,
-                                gamestate.current_stage + 1,
-                                gamestate.biome_order,
-                                gamestate.run_seed,
-                            )
+                            # Award stat points for completing the floor
+                            award_floor_stats(player)
+                            # Mark that we need to advance after stat allocation
+                            gamestate.pending_next_stage = True
+                            # Don't generate new map yet - will happen after stat allocation
                         # No exit on last stage (Boss handles win)
 
     elif action_type == "attack" and gamestate.active_encounter is not None:
+        encounter = gamestate.active_encounter
+        # Only allow action on player's turn
+        if encounter.current_turn != "player":
+            return gamestate
+
+        add_combat_log(encounter, "--- Player Turn ---")
         target_x, target_y = action[1], action[2]
         resolve_team_attack(gamestate, player, target_x, target_y, is_player_turn=True)
-        check_encounter_end(gamestate)
+
+        if not check_encounter_end(gamestate):
+            # Toggle to enemy turn and execute
+            encounter.current_turn = "enemy"
+            encounter.turn_number += 1
+            execute_enemy_turn(gamestate)
+            if not check_encounter_end(gamestate):
+                encounter.current_turn = "player"
 
     elif action_type == "convert" and gamestate.active_encounter is not None:
+        encounter = gamestate.active_encounter
+        # Only allow action on player's turn
+        if encounter.current_turn != "player":
+            return gamestate
+
+        add_combat_log(encounter, "--- Player Turn ---")
         target_x, target_y = action[1], action[2]
         resolve_team_convert(gamestate, player, target_x, target_y)
-        check_encounter_end(gamestate)
+
+        if not check_encounter_end(gamestate):
+            # Toggle to enemy turn and execute
+            encounter.current_turn = "enemy"
+            encounter.turn_number += 1
+            execute_enemy_turn(gamestate)
+            if not check_encounter_end(gamestate):
+                encounter.current_turn = "player"
 
     elif action_type == "move_unit" and gamestate.active_encounter is not None:
+        encounter = gamestate.active_encounter
+        # Only allow action on player's turn
+        if encounter.current_turn != "player":
+            return gamestate
+
+        add_combat_log(encounter, "--- Player Turn ---")
         # Move action: move one unit one square, consumes entire team's turn
         unit_idx, direction = action[1], action[2]
-        resolve_move_action(gamestate.active_encounter, unit_idx, direction, is_player=True)
+        moved = resolve_move_action(gamestate.active_encounter, unit_idx, direction, is_player=True)
+
+        if moved and not check_encounter_end(gamestate):
+            # Toggle to enemy turn and execute
+            encounter.current_turn = "enemy"
+            encounter.turn_number += 1
+            execute_enemy_turn(gamestate)
+            if not check_encounter_end(gamestate):
+                encounter.current_turn = "player"
 
     return gamestate
 
@@ -194,6 +245,8 @@ def resolve_team_attack(
     """Resolve all units' attack actions for the team turn.
 
     All units that can attack the target square do so simultaneously.
+    Each unit uses its best attack (highest damage) rather than all attacks.
+    2x2 units attack once using their top-left position.
     """
     encounter = gamestate.active_encounter
     if encounter is None:
@@ -203,6 +256,8 @@ def resolve_team_attack(
     enemy_team = encounter.enemy_team if is_player_turn else encounter.player_team
     results = []
 
+    # Track units that have acted (for 2x2 deduplication)
+    processed_units = set()
     # Track units that attacked (for debuff clearing)
     attackers = []
 
@@ -210,7 +265,20 @@ def resolve_team_attack(
         if unit is None:
             continue
 
-        attacker_col, attacker_row = grid_index_to_coords(idx)
+        # Skip if already processed (2x2 units appear in multiple slots)
+        if id(unit) in processed_units:
+            continue
+        processed_units.add(id(unit))
+
+        # For 2x2 units, use primary (top-left) position
+        if getattr(unit, "size", "1x1") == "2x2":
+            primary_pos = get_2x2_primary_position(acting_team, unit)
+            if primary_pos:
+                attacker_col, attacker_row = primary_pos
+            else:
+                attacker_col, attacker_row = grid_index_to_coords(idx)
+        else:
+            attacker_col, attacker_row = grid_index_to_coords(idx)
 
         # Get unit's attacks
         if isinstance(unit, Player):
@@ -218,71 +286,183 @@ def resolve_team_attack(
         else:
             attacks = unit.attacks or []
 
-        for attack in attacks:
-            targets = get_attack_targets(
-                encounter, attack, attacker_col, attacker_row, target_col, target_row, is_player_turn
+        # Select best attack (highest potential damage that can hit the target)
+        best_attack = select_best_attack(
+            encounter, unit, attacks, attacker_col, attacker_row,
+            target_col, target_row, is_player_turn
+        )
+
+        if best_attack is None:
+            continue
+
+        targets = get_attack_targets(
+            encounter, best_attack, attacker_col, attacker_row, target_col, target_row, is_player_turn
+        )
+
+        # Track if unit attacked for debuff clearing
+        unit_attacked = False
+
+        for target, tcol, trow in targets:
+            attacker_name = getattr(unit, "name", "Unknown")
+            target_name = getattr(target, "name", "Unknown")
+
+            # Check evasion
+            if check_evasion(target):
+                results.append({"attacker": unit, "target": target, "evaded": True})
+                add_combat_log(encounter, f"{target_name} evades {attacker_name}'s attack!")
+                unit_attacked = True
+                continue
+
+            # Check flying immunity
+            defender_has_flying = check_flying(target)
+
+            # Get effective damage with all bonuses
+            effective_damage = get_effective_attack_damage(unit, best_attack, encounter, is_player_turn)
+            modified_attack = Attack(
+                attack_type=best_attack.attack_type,
+                damage=effective_damage,
+                range_min=best_attack.range_min,
+                range_max=best_attack.range_max,
+                abilities=best_attack.abilities,
             )
 
-            for target, tcol, trow in targets:
-                # Check evasion
-                if check_evasion(target):
-                    results.append({"attacker": unit, "target": target, "evaded": True})
-                    continue
+            # Calculate final damage with defense bonuses
+            attacker_debuffs = getattr(unit, "debuffs", {}) or {}
+            damage = calculate_damage_with_bonuses(
+                modified_attack, unit, target, attacker_debuffs, defender_has_flying,
+                encounter, is_player_turn, player
+            )
 
-                # Check flying immunity
-                defender_has_flying = check_flying(target)
+            # Apply damage
+            target.current_health = max(0, target.current_health - damage)
+            unit_attacked = True
 
-                # Get effective damage with all bonuses
-                effective_damage = get_effective_attack_damage(unit, attack, encounter, is_player_turn)
-                modified_attack = Attack(
-                    attack_type=attack.attack_type,
-                    damage=effective_damage,
-                    range_min=attack.range_min,
-                    range_max=attack.range_max,
-                    abilities=attack.abilities,
-                )
+            # Log the attack
+            if damage > 0:
+                add_combat_log(encounter, f"{attacker_name} hits {target_name} for {damage} dmg")
+                # Process Lifelink
+                process_lifelink(unit, damage)
+            else:
+                add_combat_log(encounter, f"{attacker_name}'s attack deals 0 dmg to {target_name}")
 
-                # Calculate final damage
-                attacker_debuffs = getattr(unit, "debuffs", {}) or {}
-                damage = calculate_damage(
-                    modified_attack, unit, target, attacker_debuffs, defender_has_flying
-                )
+            # Apply debuffs from attack
+            applied_debuffs = apply_debuffs(best_attack, target)
+            if applied_debuffs:
+                for debuff in applied_debuffs:
+                    add_combat_log(encounter, f"{target_name} gains {debuff}!")
 
-                # Apply damage
-                if damage > 0:
-                    target.current_health = max(0, target.current_health - damage)
-                    attackers.append(unit)
+            results.append({
+                "attacker": unit,
+                "target": target,
+                "damage": damage,
+                "debuffs": applied_debuffs,
+            })
 
-                    # Process Lifelink
-                    process_lifelink(unit, damage)
+        # Clear debuff stacks when unit attacks (regardless of damage dealt)
+        if unit_attacked:
+            attackers.append(unit)
 
-                    # Apply debuffs from attack
-                    applied_debuffs = apply_debuffs(attack, target)
+        # Process Healing ability for magic attacks
+        if best_attack.attack_type == "magic":
+            healed = process_healing_ability(unit, encounter, is_player_turn)
+            if healed:
+                unit_name = getattr(unit, "name", "Unknown")
+                add_combat_log(encounter, f"{unit_name} heals ally for {healed} HP")
+                results.append({"attacker": unit, "healed": healed})
 
-                    results.append({
-                        "attacker": unit,
-                        "target": target,
-                        "damage": damage,
-                        "debuffs": applied_debuffs,
-                    })
-
-            # Process Healing ability for magic attacks
-            if attack.attack_type == "magic":
-                healed = process_healing_ability(unit, encounter, is_player_turn)
-                if healed:
-                    results.append({"attacker": unit, "healed": healed})
-
-    # Clear debuff stacks from attackers (use id() to track unique units)
-    seen_ids = set()
+    # Clear debuff stacks from attackers
     for attacker in attackers:
-        if id(attacker) not in seen_ids:
-            seen_ids.add(id(attacker))
-            clear_debuff_stacks(attacker)
+        clear_debuff_stacks(attacker)
 
     # Remove dead enemies
     remove_dead_units(encounter, is_player_turn)
 
     return results
+
+
+def select_best_attack(
+    encounter: Encounter,
+    unit: Union[Creature, Player],
+    attacks: list[Attack],
+    attacker_col: int,
+    attacker_row: int,
+    target_col: int,
+    target_row: int,
+    is_player_turn: bool,
+) -> Optional[Attack]:
+    """Select the best attack that can hit the target.
+
+    Returns the attack with highest damage that can reach the target.
+    """
+    best_attack = None
+    best_damage = -1
+
+    for attack in attacks:
+        targets = get_attack_targets(
+            encounter, attack, attacker_col, attacker_row, target_col, target_row, is_player_turn
+        )
+        if targets:
+            # This attack can hit targets
+            effective_damage = get_effective_attack_damage(unit, attack, encounter, is_player_turn)
+            if effective_damage > best_damage:
+                best_damage = effective_damage
+                best_attack = attack
+
+    return best_attack
+
+
+def calculate_damage_with_bonuses(
+    attack: Attack,
+    attacker: Union[Creature, Player],
+    defender: Union[Creature, Player],
+    attacker_debuffs: dict[str, int],
+    defender_has_flying: bool,
+    encounter: Encounter,
+    is_player_turn: bool,
+    player: Player,
+) -> int:
+    """Calculate damage including all defense bonuses.
+
+    Uses get_effective_defense which includes WIS/Guardian/Protector/Shield Wall.
+    Minimum damage is 1 unless Flying blocks melee or attack is 0.
+    """
+    base_damage = attack.damage
+
+    # Flying immunity to melee
+    if attack.attack_type == "melee" and defender_has_flying:
+        return 0
+
+    # Apply debuffs to attack damage
+    debuff_reduction = 0
+    if attack.attack_type == "melee":
+        debuff_reduction = attacker_debuffs.get("defanged", 0) * 6
+        debuff_reduction += attacker_debuffs.get("weakened", 0) * 3
+    elif attack.attack_type == "ranged":
+        debuff_reduction = attacker_debuffs.get("blinded", 0) * 6
+        debuff_reduction += attacker_debuffs.get("weakened", 0) * 3
+    elif attack.attack_type == "magic":
+        debuff_reduction = attacker_debuffs.get("silenced", 0) * 6
+        debuff_reduction += attacker_debuffs.get("weakened", 0) * 3
+
+    effective_damage = max(0, base_damage - debuff_reduction)
+
+    # If debuffs reduce attack to 0, deal minimum 1 damage
+    if base_damage > 0 and effective_damage == 0:
+        effective_damage = 1
+
+    if effective_damage == 0:
+        return 0
+
+    # Get effective defense with all bonuses
+    defender_is_player_side = not is_player_turn
+    if attack.attack_type == "melee":
+        defense = get_effective_defense(defender, "defense", encounter, defender_is_player_side, player)
+    elif attack.attack_type == "ranged":
+        defense = get_effective_defense(defender, "dodge", encounter, defender_is_player_side, player)
+    else:  # magic
+        defense = get_effective_defense(defender, "resistance", encounter, defender_is_player_side, player)
+
+    return max(1, effective_damage - defense)
 
 
 def get_attack_targets(
@@ -342,18 +522,38 @@ def resolve_team_convert(
     target_col: int,
     target_row: int,
 ) -> list[dict]:
-    """Resolve all units' convert actions for the team turn."""
+    """Resolve all units' convert actions for the team turn.
+
+    Each unit uses its best attack for conversion.
+    2x2 units convert once using their top-left position.
+    Pack Hunter bonus applies to conversion.
+    """
     encounter = gamestate.active_encounter
     if encounter is None:
         return []
 
     results = []
+    processed_units = set()  # Track 2x2 units
+    converters = []  # Track units that converted for debuff clearing
 
     for idx, unit in enumerate(encounter.player_team or []):
         if unit is None:
             continue
 
-        attacker_col, attacker_row = grid_index_to_coords(idx)
+        # Skip if already processed (2x2 units)
+        if id(unit) in processed_units:
+            continue
+        processed_units.add(id(unit))
+
+        # For 2x2 units, use primary (top-left) position
+        if getattr(unit, "size", "1x1") == "2x2":
+            primary_pos = get_2x2_primary_position(encounter.player_team, unit)
+            if primary_pos:
+                attacker_col, attacker_row = primary_pos
+            else:
+                attacker_col, attacker_row = grid_index_to_coords(idx)
+        else:
+            attacker_col, attacker_row = grid_index_to_coords(idx)
 
         # Get unit's attacks (conversion uses same targeting)
         if isinstance(unit, Player):
@@ -366,38 +566,71 @@ def resolve_team_convert(
         # Calculate effective efficacy with CHA bonus
         effective_efficacy = calculate_effective_efficacy(player, base_efficacy)
 
-        for attack in attacks:
-            targets = get_attack_targets(
-                encounter, attack, attacker_col, attacker_row, target_col, target_row, True
+        # Select best attack for conversion
+        best_attack = select_best_attack(
+            encounter, unit, attacks, attacker_col, attacker_row,
+            target_col, target_row, True
+        )
+
+        if best_attack is None:
+            continue
+
+        targets = get_attack_targets(
+            encounter, best_attack, attacker_col, attacker_row, target_col, target_row, True
+        )
+
+        unit_converted = False
+
+        for target, tcol, trow in targets:
+            if not isinstance(target, Creature):
+                continue  # Can only convert creatures
+
+            converter_name = getattr(unit, "name", "Unknown")
+            target_name = getattr(target, "name", "Unknown")
+
+            # Calculate conversion points with Pack Hunter bonus
+            pack_bonus = calculate_pack_hunter_bonus(unit, encounter, True)
+            attack_with_bonus = Attack(
+                attack_type=best_attack.attack_type,
+                damage=best_attack.damage + pack_bonus.get(best_attack.attack_type, 0),
+                range_min=best_attack.range_min,
+                range_max=best_attack.range_max,
+                abilities=best_attack.abilities,
             )
+            conversion = calculate_conversion(attack_with_bonus, unit, target, effective_efficacy)
 
-            for target, tcol, trow in targets:
-                if not isinstance(target, Creature):
-                    continue  # Can only convert creatures
+            if conversion > 0:
+                target.conversion_progress = getattr(target, "conversion_progress", 0) + conversion
+                unit_converted = True
 
-                # Calculate conversion points
-                conversion = calculate_conversion(attack, unit, target, effective_efficacy)
+                add_combat_log(encounter, f"{converter_name} converts {target_name} +{conversion}")
 
-                if conversion > 0:
-                    target.conversion_progress = getattr(target, "conversion_progress", 0) + conversion
+                results.append({
+                    "converter": unit,
+                    "target": target,
+                    "conversion": conversion,
+                    "total": target.conversion_progress,
+                })
 
-                    results.append({
-                        "converter": unit,
-                        "target": target,
-                        "conversion": conversion,
-                        "total": target.conversion_progress,
-                    })
+                # Check if fully converted
+                if target.conversion_progress >= target.max_health:
+                    add_combat_log(encounter, f"{target_name} joins your team!")
+                    # Add to pending recruits
+                    if gamestate.pending_recruits is None:
+                        gamestate.pending_recruits = []
+                    gamestate.pending_recruits.append(target)
 
-                    # Check if fully converted
-                    if target.conversion_progress >= target.max_health:
-                        # Add to pending recruits
-                        if gamestate.pending_recruits is None:
-                            gamestate.pending_recruits = []
-                        gamestate.pending_recruits.append(target)
+                    # Remove from enemy team
+                    target_idx = trow * 3 + tcol
+                    remove_unit_from_grid(encounter.enemy_team, target, target_idx)
 
-                        # Remove from enemy team
-                        target_idx = trow * 3 + tcol
-                        remove_unit_from_grid(encounter.enemy_team, target, target_idx)
+        # Clear debuff stacks when unit converts
+        if unit_converted:
+            converters.append(unit)
+
+    # Clear debuff stacks from converters
+    for converter in converters:
+        clear_debuff_stacks(converter)
 
     return results
 
@@ -410,7 +643,9 @@ def resolve_move_action(
 ) -> bool:
     """Move one unit one square (orthogonal only).
 
-    Can swap with an ally. Consumes the entire team's turn.
+    For 1x1 units: Can swap with an ally.
+    For 2x2 units: Uses move_2x2_unit which displaces 1x1 units.
+    Consumes the entire team's turn.
     Returns True if move was successful.
     """
     team = encounter.player_team if is_player else encounter.enemy_team
@@ -426,6 +661,28 @@ def resolve_move_action(
     if abs(dx) + abs(dy) != 1:
         return False
 
+    unit_name = getattr(unit, "name", "Unknown")
+
+    # Handle 2x2 units specially
+    if getattr(unit, "size", "1x1") == "2x2":
+        displaced = move_2x2_unit(team, unit, direction)
+        # move_2x2_unit returns [] on failure (no positions found or out of bounds)
+        # Need to check if unit actually moved by comparing positions
+        current_positions = [i for i, u in enumerate(team) if u is unit]
+        if len(current_positions) != 4:
+            return False  # Unit not properly placed
+        # If we get here, move was attempted. Check if positions changed.
+        # move_2x2_unit returns displaced units; empty list could mean success with no displacement
+        # The function returns [] on invalid move too, so check if unit is in valid position
+        min_row = min(p // 3 for p in current_positions)
+        min_col = min(p % 3 for p in current_positions)
+        # Valid 2x2 position means top-left is at row 0-1, col 0-1
+        if 0 <= min_row <= 1 and 0 <= min_col <= 1:
+            add_combat_log(encounter, f"{unit_name} moves")
+            return True  # Unit is in valid position after move
+        return False
+
+    # Handle 1x1 units - simple swap
     unit_col, unit_row = grid_index_to_coords(unit_idx)
     new_col = unit_col + dx
     new_row = unit_row + dy
@@ -435,11 +692,21 @@ def resolve_move_action(
         return False
 
     new_idx = coords_to_grid_index(new_col, new_row)
+    other_unit = team[new_idx]
+
+    # Cannot swap into a 2x2 unit's space (would break it)
+    if other_unit is not None and getattr(other_unit, "size", "1x1") == "2x2":
+        return False
 
     # Swap with ally if present, or move to empty square
-    other_unit = team[new_idx]
     team[new_idx] = unit
     team[unit_idx] = other_unit
+
+    if other_unit is not None:
+        other_name = getattr(other_unit, "name", "Unknown")
+        add_combat_log(encounter, f"{unit_name} swaps with {other_name}")
+    else:
+        add_combat_log(encounter, f"{unit_name} moves")
 
     return True
 
@@ -448,11 +715,16 @@ def remove_dead_units(encounter: Encounter, is_player_turn: bool) -> list[Creatu
     """Remove dead units from the battlefield. Returns list of removed units."""
     enemy_team = encounter.enemy_team if is_player_turn else encounter.player_team
     removed = []
+    removed_ids = set()  # Track already removed for 2x2
 
     for idx in range(9):
         unit = enemy_team[idx] if enemy_team else None
         if unit is not None and unit.current_health <= 0:
-            removed.append(unit)
+            if id(unit) not in removed_ids:
+                removed.append(unit)
+                removed_ids.add(id(unit))
+                unit_name = getattr(unit, "name", "Unknown")
+                add_combat_log(encounter, f"{unit_name} is defeated!")
             remove_unit_from_grid(enemy_team, unit, idx)
 
     return removed
@@ -479,8 +751,26 @@ def check_encounter_end(gamestate: GameState) -> bool:
 
     encounter = gamestate.active_encounter
 
-    # Check if all enemies are gone
+    # Find player for experience calculation
+    player = None
+    for placeable in gamestate.placeables or []:
+        if isinstance(placeable, Player):
+            player = placeable
+            break
+
+    # Check if all enemies are gone (player wins)
     if all(enemy is None for enemy in (encounter.enemy_team or [])):
+        # Process experience and tier progression
+        battle_results = None
+        if player:
+            battle_results = end_battle_experience(encounter, player)
+
+        # Store battle results for display
+        gamestate.last_battle_results = battle_results
+
+        # Collect any pending recruits (converted creatures)
+        # pending_recruits was populated during convert actions
+
         # Remove encounter from map
         gamestate.placeables = [
             p for p in gamestate.placeables if p != encounter
@@ -497,6 +787,7 @@ def check_encounter_end(gamestate: GameState) -> bool:
     if all(ally is None for ally in (encounter.player_team or [])):
         gamestate.status = "lost"
         gamestate.active_encounter = None
+        gamestate.last_battle_results = None
         return True
 
     return False
@@ -509,19 +800,56 @@ def initialize_encounter(encounter: Encounter, player: Player) -> None:
     encounter.player_team[4] = player
     encounter.enemy_team = [None] * 9
 
-    if encounter.creature:
-        # Place enemy creature(s) based on size
-        if encounter.creature.size == "2x2":
-            # Place 2x2 unit in positions 0,1,3,4 (top-left corner)
-            for idx in [0, 1, 3, 4]:
-                encounter.enemy_team[idx] = encounter.creature
-        else:
-            # Place 1x1 unit in center
-            encounter.enemy_team[4] = encounter.creature
+    # Randomly place enemy creatures
+    if encounter.creatures:
+        _randomly_place_enemies(encounter.enemy_team, encounter.creatures)
 
     # Determine first turn based on Haste
     encounter.current_turn = "enemy" if check_haste(encounter) else "player"
     encounter.turn_number = 0
+
+
+def _randomly_place_enemies(team: list, creatures: list) -> None:
+    """Randomly place enemy creatures on a 3x3 grid.
+
+    Only one 2x2 unit can fit, so we place at most one.
+    1x1 units fill remaining spaces.
+    """
+    # Separate 2x2 and 1x1 units
+    large_units = [u for u in creatures if getattr(u, "size", "1x1") == "2x2"]
+    small_units = [u for u in creatures if getattr(u, "size", "1x1") == "1x1"]
+
+    # Shuffle for randomness
+    random.shuffle(large_units)
+    random.shuffle(small_units)
+
+    # Place at most ONE 2x2 unit (grid can only fit one)
+    # Valid 2x2 top-left positions: (0,0), (1,0), (0,1), (1,1)
+    if large_units:
+        valid_2x2_starts = [(0, 0), (1, 0), (0, 1), (1, 1)]
+        random.shuffle(valid_2x2_starts)
+
+        unit = large_units[0]  # Only place the first one
+        for col, row in valid_2x2_starts:
+            indices = [
+                row * 3 + col,
+                row * 3 + col + 1,
+                (row + 1) * 3 + col,
+                (row + 1) * 3 + col + 1,
+            ]
+            if all(team[idx] is None for idx in indices):
+                for idx in indices:
+                    team[idx] = unit
+                break
+
+    # Place 1x1 units in remaining empty positions
+    empty_positions = [i for i in range(9) if team[i] is None]
+    random.shuffle(empty_positions)
+
+    for unit in small_units:
+        if empty_positions:
+            pos = empty_positions.pop()
+            team[pos] = unit
 
 
 # === 2x2 LARGE UNIT SUPPORT ===
@@ -708,40 +1036,65 @@ def generate_map(
         # Boss Level - spawn Dragon King from registry
         boss = spawn_creature("Dragon King")
         # Place boss
-        placeables.append(Encounter(x=GRID_WIDTH - 10, y=GRID_HEIGHT // 2, symbol="D", color=(255, 80, 80), creature=boss))
+        placeables.append(Encounter(x=GRID_WIDTH - 10, y=GRID_HEIGHT // 2, symbol="D", color=(255, 80, 80), creatures=[boss]))
     else:
         # Standard Level
         # Place Exit
         placeables.append(Exit(x=GRID_WIDTH - 2, y=GRID_HEIGHT // 2, symbol=">", color=(255, 255, 255), visible=True))
 
-        # Encounters - spawn creatures based on terrain
-        encounter_positions = [(10, 10), (15, 12), (30, 8), (20, 15), (35, 18), (8, 20)]
+        # Encounters - each cell has independent chance based on terrain
+        encounter_chance = 0.02  # 2% chance per cell
 
-        # Build list of available creature names for this biome
-        available_creatures = []
-        for terrain_type, creature_names in terrain_creatures.items():
-            available_creatures.extend(creature_names)
+        # Use seeded RNG for reproducible encounter placement
+        encounter_rng = random.Random(seed + 999)
 
-        if not available_creatures:
-            # Fallback - shouldn't happen with proper data
-            available_creatures = ["Wolf"]
+        # Enemy count scaling based on stage (deeper = more enemies)
+        # Stage 1-5: 1-2 enemies, Stage 6-10: 2-3, Stage 11-15: 3-4, Stage 16-19: 4-5
+        biome_index = (stage - 1) // 5  # 0-3
+        min_enemies = 1 + biome_index
+        max_enemies = 2 + biome_index
 
-        # Simple randomization: shift positions based on stage to make levels look slightly different
-        for i, (base_x, base_y) in enumerate(encounter_positions):
-            # rudimentary procedural generation variation
-            x = (base_x + stage * 3) % (GRID_WIDTH - 2) + 1
-            y = (base_y + stage * 2) % (GRID_HEIGHT - 2) + 1
+        # Enemy tier scaling - chance of higher starting tier in deeper biomes
+        tier_chance = biome_index * 0.15  # 0%, 15%, 30%, 45% chance per enemy
 
-            # Ensure not on player start or exit
-            if abs(x - player.x) < 2 and abs(y - player.y) < 2:
-                continue
-            if x == GRID_WIDTH - 2 and y == GRID_HEIGHT // 2:
-                continue
+        for y in range(2, GRID_HEIGHT - 2):
+            for x in range(2, GRID_WIDTH - 2):
+                # Skip cells near player spawn or exit
+                if abs(x - player.x) < 3 and abs(y - player.y) < 3:
+                    continue
+                if abs(x - (GRID_WIDTH - 2)) < 2 and abs(y - GRID_HEIGHT // 2) < 2:
+                    continue
 
-            # Get creature from registry
-            creature_name = available_creatures[(i + stage) % len(available_creatures)]
-            creature = spawn_creature(creature_name)
-            placeables.append(Encounter(x=x, y=y, symbol=creature.symbol, color=creature.color, creature=creature))
+                # Roll for encounter
+                if encounter_rng.random() >= encounter_chance:
+                    continue
+
+                # Get terrain at this position
+                terrain_at_pos = terrain_map.get((x, y), base_tile)
+                creatures_for_terrain = terrain_creatures.get(terrain_at_pos, [])
+
+                # Skip if no creatures defined for this terrain
+                if not creatures_for_terrain:
+                    continue
+
+                # Spawn multiple enemies for this encounter
+                num_enemies = encounter_rng.randint(min_enemies, max_enemies)
+                encounter_creatures = []
+
+                for _ in range(num_enemies):
+                    creature_name = encounter_rng.choice(creatures_for_terrain)
+                    creature = spawn_creature(creature_name)
+
+                    # Roll for starting at higher tier
+                    if encounter_rng.random() < tier_chance:
+                        bonus_tier = encounter_rng.randint(1, biome_index)
+                        creature.current_tier = min(bonus_tier, 3)  # Cap at tier 3
+
+                    encounter_creatures.append(creature)
+
+                # Use first creature's symbol/color for map display
+                first = encounter_creatures[0]
+                placeables.append(Encounter(x=x, y=y, symbol=first.symbol, color=first.color, creatures=encounter_creatures))
 
     return GameState(
         placeables=placeables,

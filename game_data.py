@@ -88,20 +88,25 @@ class Encounter(Placeable):
     """Represents an encounter trigger on the map."""
 
     visible: bool = False
-    creature: Optional[Creature] = None
+    creatures: list[Creature] = None  # Enemy creatures to spawn (placed randomly on init)
     player_team: list[Optional["Creature | Player"]] = None  # 9 cells: TL, T, TR, L, M, R, BL, B, BR
     enemy_team: list[Optional[Creature]] = None  # 9 cells: TL, T, TR, L, M, R, BL, B, BR
 
     # Combat state
     current_turn: str = "player"  # "player" | "enemy"
     turn_number: int = 0
+    combat_log: list[str] = None  # Log of combat events
 
     def __post_init__(self):
         """Initialize mutable default values."""
+        if self.creatures is None:
+            self.creatures = []
         if self.player_team is None:
             self.player_team = [None] * 9
         if self.enemy_team is None:
             self.enemy_team = [None] * 9
+        if self.combat_log is None:
+            self.combat_log = []
 
 
 @dataclass
@@ -114,9 +119,9 @@ class Player(Placeable):
     name: str = "Player"
 
     # Hero attributes (affect allies and hero combat)
-    intelligence: int = 10  # Reduces tier requirements, boosts ranged attack/dodge
-    wisdom: int = 10  # +1 all defenses per +4 to allies, boosts melee attack/defense
-    charisma: int = 10  # +10% efficacy per +4, boosts magic attack/resistance
+    intelligence: int = 0  # Reduces tier requirements, boosts ranged attack/dodge
+    wisdom: int = 0  # +1 all defenses per +4 to allies, boosts melee attack/defense
+    charisma: int = 0  # +10% efficacy per +4, boosts magic attack/resistance
     battle: int = 0  # Scales hero combat effectiveness
 
     # Base combat stats (heroes can use all 3 attack types)
@@ -157,6 +162,8 @@ class GameState:
     biome_order: list[str] = None
     run_seed: Optional[int] = None
     pending_recruits: list[Creature] = None
+    last_battle_results: Optional[dict] = None  # Results from last battle for display
+    pending_next_stage: bool = False  # True when player used exit and needs to advance after stat allocation
 
     def __post_init__(self):
         if self.pending_recruits is None:

@@ -53,6 +53,55 @@ def check_tier_upgrade(creature: Creature, hero_int: int) -> bool:
     return False
 
 
+def get_tier_bonus_description(creature: Creature, tier: int) -> list[str]:
+    """Get human-readable descriptions of bonuses for a tier.
+
+    Returns list of bonus descriptions.
+    """
+    descriptions = []
+    if not creature.tier_bonuses:
+        return descriptions
+
+    for bonus in creature.tier_bonuses:
+        if bonus.get("tier") != tier:
+            continue
+
+        if "max_health" in bonus:
+            descriptions.append(f"+{bonus['max_health']} Max HP")
+        if "defense" in bonus:
+            descriptions.append(f"+{bonus['defense']} Defense")
+        if "dodge" in bonus:
+            descriptions.append(f"+{bonus['dodge']} Dodge")
+        if "resistance" in bonus:
+            descriptions.append(f"+{bonus['resistance']} Resistance")
+        if "conversion_efficacy" in bonus:
+            val = bonus['conversion_efficacy']
+            sign = "+" if val >= 0 else ""
+            descriptions.append(f"{sign}{val}% Efficacy")
+        if "melee_damage" in bonus:
+            descriptions.append(f"+{bonus['melee_damage']} Melee Damage")
+        if "ranged_damage" in bonus:
+            descriptions.append(f"+{bonus['ranged_damage']} Ranged Damage")
+        if "magic_damage" in bonus:
+            descriptions.append(f"+{bonus['magic_damage']} Magic Damage")
+        if "new_attack" in bonus:
+            atk = bonus["new_attack"]
+            descriptions.append(f"New Attack: {atk['type']} ({atk['damage']})")
+        if "attack_abilities" in bonus:
+            for atk_type, abilities in bonus["attack_abilities"].items():
+                for ability in abilities:
+                    descriptions.append(f"{atk_type.title()} gains {ability}")
+        if "abilities" in bonus:
+            for ability in bonus["abilities"]:
+                descriptions.append(f"Ability: {ability}")
+        if "healing_bonus" in bonus:
+            descriptions.append(f"+{bonus['healing_bonus']} Healing")
+        if "size" in bonus and bonus["size"] == "2x2":
+            descriptions.append("Grows to 2x2!")
+
+    return descriptions
+
+
 def apply_tier_bonuses(creature: Creature, tier: int) -> None:
     """Apply stat and ability bonuses for reaching a tier.
 
@@ -153,15 +202,20 @@ def apply_tier_bonuses(creature: Creature, tier: int) -> None:
 def end_battle_experience(
     encounter: Encounter,
     player: Player,
-) -> tuple[list[Creature], list[Creature]]:
+) -> dict:
     """Award experience at battle end.
 
-    Returns:
-        - List of creatures that upgraded tier
-        - List of creatures that grew to 2x2 (need re-placement)
+    Returns dict with:
+        - 'participants': list of dicts with creature info and exp gain
+        - 'tier_ups': list of dicts with creature, new tier, and bonus descriptions
+        - 'grew_to_2x2': list of creatures that grew to 2x2 (need re-placement)
     """
-    upgraded = []
+    participants = []
+    tier_ups = []
     grew_to_2x2 = []
+
+    # Track unique creatures (for 2x2 units that appear multiple times)
+    processed_ids = set()
 
     for unit in encounter.player_team or []:
         if unit is None or isinstance(unit, Player):
@@ -170,19 +224,48 @@ def end_battle_experience(
         if not isinstance(unit, Creature):
             continue
 
+        # Skip if already processed (2x2 units)
+        if id(unit) in processed_ids:
+            continue
+        processed_ids.add(id(unit))
+
+        # Record battles before increment
+        old_battles = unit.battles_completed
+        old_tier = unit.tier
+        old_size = unit.size
+
         # Increment battle count
         unit.battles_completed += 1
 
+        # Record participant
+        participants.append({
+            "creature": unit,
+            "name": unit.name,
+            "battles_before": old_battles,
+            "battles_after": unit.battles_completed,
+        })
+
         # Check for tier upgrade
-        old_size = unit.size
         if check_tier_upgrade(unit, player.intelligence):
-            upgraded.append(unit)
+            new_tier = unit.tier
+            bonuses = get_tier_bonus_description(unit, new_tier)
+            tier_ups.append({
+                "creature": unit,
+                "name": unit.name,
+                "old_tier": old_tier,
+                "new_tier": new_tier,
+                "bonuses": bonuses,
+            })
 
             # Check if grew to 2x2
             if unit.size == "2x2" and old_size == "1x1":
                 grew_to_2x2.append(unit)
 
-    return upgraded, grew_to_2x2
+    return {
+        "participants": participants,
+        "tier_ups": tier_ups,
+        "grew_to_2x2": grew_to_2x2,
+    }
 
 
 def handle_growth_to_2x2(

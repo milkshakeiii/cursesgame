@@ -5,7 +5,7 @@ import random
 from game_data import GRID_HEIGHT, GRID_WIDTH
 from gameplay import generate_map
 from graphics import SpriteManager
-from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen, BiomeOrderScreen, TeamArrangementScreen
+from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen, BiomeOrderScreen, TeamArrangementScreen, BattleResultsScreen, StatAllocationScreen
 
 SCALE = 1
 
@@ -34,6 +34,8 @@ class Game:
         self.game_over_screen = GameOverScreen()
         self.biome_order_screen = BiomeOrderScreen()
         self.team_arrangement_screen = TeamArrangementScreen()
+        self.battle_results_screen = BattleResultsScreen()
+        self.stat_allocation_screen = StatAllocationScreen()
         self.current_back_screen = self.main_menu
         self.current_front_screen = None
 
@@ -61,8 +63,21 @@ class Game:
         if screen_size == (SCREEN_WIDTH, SCREEN_HEIGHT):
             self.screen.blit(self.render_surface, (0, 0))
         else:
-            scaled = pygame.transform.scale(self.render_surface, screen_size)
-            self.screen.blit(scaled, (0, 0))
+            # Scale maintaining aspect ratio with letterboxing/pillarboxing
+            screen_w, screen_h = screen_size
+            scale_x = screen_w / SCREEN_WIDTH
+            scale_y = screen_h / SCREEN_HEIGHT
+            scale = min(scale_x, scale_y)
+
+            scaled_w = int(SCREEN_WIDTH * scale)
+            scaled_h = int(SCREEN_HEIGHT * scale)
+            offset_x = (screen_w - scaled_w) // 2
+            offset_y = (screen_h - scaled_h) // 2
+
+            # Fill with black for letterbox/pillarbox bars
+            self.screen.fill((0, 0, 0))
+            scaled = pygame.transform.scale(self.render_surface, (scaled_w, scaled_h))
+            self.screen.blit(scaled, (offset_x, offset_y))
 
 def main():
     pygame.init()

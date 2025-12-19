@@ -26,17 +26,36 @@ def calculate_potential_damage(
 ) -> int:
     """Calculate total damage enemy team would deal to a target square.
 
-    Considers all enemy units and their attacks.
+    Each unit uses best attack. 2x2 units count once.
     """
+    from gameplay import get_2x2_primary_position
+
     total_damage = 0
+    processed_units = set()
 
     for idx, unit in enumerate(encounter.enemy_team or []):
         if unit is None:
             continue
 
-        attacker_col, attacker_row = grid_index_to_coords(idx)
+        # Skip if already processed (2x2 units)
+        if id(unit) in processed_units:
+            continue
+        processed_units.add(id(unit))
+
+        # For 2x2 units, use primary position
+        if getattr(unit, "size", "1x1") == "2x2":
+            primary_pos = get_2x2_primary_position(encounter.enemy_team, unit)
+            if primary_pos:
+                attacker_col, attacker_row = primary_pos
+            else:
+                attacker_col, attacker_row = grid_index_to_coords(idx)
+        else:
+            attacker_col, attacker_row = grid_index_to_coords(idx)
+
         attacks = getattr(unit, "attacks", []) or []
 
+        # Select best attack that can hit the target
+        best_damage = 0
         for attack in attacks:
             targets = get_enemy_attack_targets(
                 encounter, attack, attacker_col, attacker_row, target_col, target_row
@@ -62,7 +81,10 @@ def calculate_potential_damage(
                 damage = calculate_damage(
                     modified_attack, unit, target, attacker_debuffs, defender_has_flying
                 )
-                total_damage += damage
+                if damage > best_damage:
+                    best_damage = damage
+
+        total_damage += best_damage
 
     return total_damage
 
@@ -121,6 +143,7 @@ def choose_enemy_target(encounter: Encounter) -> tuple[int, int]:
     """Choose the target square that yields highest total damage.
 
     Enemy AI always chooses Attack and targets optimally.
+    Considers empty squares for Splash attacks.
     Returns (col, row) of target square.
     """
     best_target = (1, 1)  # Default to center
@@ -128,13 +151,7 @@ def choose_enemy_target(encounter: Encounter) -> tuple[int, int]:
 
     for row in range(3):
         for col in range(3):
-            # Check if there's a player unit at this position
-            idx = row * 3 + col
-            target = encounter.player_team[idx] if encounter.player_team else None
-
-            if target is None:
-                continue
-
+            # Consider all squares (including empty for Splash)
             damage = calculate_potential_damage(encounter, col, row)
 
             if damage > best_damage:
@@ -152,7 +169,7 @@ def execute_enemy_turn(gamestate: GameState) -> list[dict]:
 
     Returns list of action results for animation/logging.
     """
-    from gameplay import resolve_team_attack, move_2x2_unit
+    from gameplay import resolve_team_attack, move_2x2_unit, add_combat_log
 
     encounter = gamestate.active_encounter
     if encounter is None:
@@ -168,6 +185,9 @@ def execute_enemy_turn(gamestate: GameState) -> list[dict]:
     if player is None:
         return []
 
+    # Log turn start
+    add_combat_log(encounter, "--- Enemy Turn ---")
+
     # Choose target square
     target_col, target_row = choose_enemy_target(encounter)
 
@@ -182,18 +202,29 @@ def execute_enemy_turn(gamestate: GameState) -> list[dict]:
 
 def handle_dragon_king_movement(encounter: Encounter) -> None:
     """Dragon King moves 1 square in a random direction after attacking."""
-    from gameplay import move_2x2_unit
+    from gameplay import move_2x2_unit, get_2x2_primary_position, add_combat_log
 
+    processed = set()
     for unit in encounter.enemy_team or []:
-        if unit is not None and getattr(unit, "name", "") == "Dragon King":
+        if unit is None or id(unit) in processed:
+            continue
+        processed.add(id(unit))
+
+        if getattr(unit, "name", "") == "Dragon King":
+            # Get current position before move attempt
+            old_pos = get_2x2_primary_position(encounter.enemy_team, unit)
+
             # Random orthogonal direction
             directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
             random.shuffle(directions)
 
             # Try each direction until one works
             for direction in directions:
-                displaced = move_2x2_unit(encounter.enemy_team, unit, direction)
-                if displaced is not None:
+                move_2x2_unit(encounter.enemy_team, unit, direction)
+                # Check if position actually changed
+                new_pos = get_2x2_primary_position(encounter.enemy_team, unit)
+                if new_pos != old_pos:
+                    add_combat_log(encounter, "Dragon King shifts position")
                     break  # Move succeeded
 
             break  # Only one Dragon King
