@@ -469,12 +469,26 @@ class MapView(Screen):
         # Draw all visible placeables except player first
         for placeable in game.gamestate.placeables or []:
             if placeable.visible and not isinstance(placeable, Player):
-                game.sprite_manager.draw(screen, placeable.x, placeable.y, placeable.symbol, placeable.color)
+                game.sprite_manager.draw(
+                    screen,
+                    placeable.x,
+                    placeable.y,
+                    placeable.symbol,
+                    placeable.color,
+                    placeable.bg_color,
+                )
 
         # Draw player
         for placeable in game.gamestate.placeables or []:
             if isinstance(placeable, Player):
-                game.sprite_manager.draw(screen, placeable.x, placeable.y, placeable.symbol, placeable.color)
+                game.sprite_manager.draw(
+                    screen,
+                    placeable.x,
+                    placeable.y,
+                    placeable.symbol,
+                    placeable.color,
+                    placeable.bg_color,
+                )
         
         # Draw HUD
         self.draw_text(screen, f"Level: {game.gamestate.current_stage}/{game.gamestate.max_stages}", 10, 10, (255, 255, 255), self.font)

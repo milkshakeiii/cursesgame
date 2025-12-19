@@ -17,6 +17,7 @@ class Placeable:
     symbol: str
     color: tuple[int, int, int]
     visible: bool
+    bg_color: Optional[tuple[int, int, int]] = None
 
 
 @dataclass
@@ -110,6 +111,7 @@ class GameState:
     max_stages: int = 20
     status: str = "playing"  # playing, won, lost
     biome_order: list[str] = None
+    run_seed: Optional[int] = None
     pending_recruits: list[Creature] = None
 
     def __post_init__(self):

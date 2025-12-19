@@ -4,26 +4,65 @@ from typing import Optional
 import random
 
 from game_data import GRID_HEIGHT, GRID_WIDTH, Creature, Encounter, Exit, GameState, Player, Terrain
+from terrain_gen import generate_biome_terrain
 
 BIOME_DATA = {
     "forest": {
         "name": "Forest",
-        "terrain_colors": {",": (34, 139, 34), ".": (139, 69, 19)}, 
+        "base_tile": "grass",
+        "tiles": {
+            "grass": {"symbol": "░", "color": (60, 120, 60), "bg_color": (20, 50, 20)},
+            "trees": {"symbol": "█", "color": (10, 60, 10), "bg_color": (20, 40, 20)},
+            "bushes": {"symbol": "▒", "color": (50, 120, 60), "bg_color": (25, 60, 30)},
+            "hill": {"symbol": "▓", "color": (110, 90, 60), "bg_color": (60, 40, 20)},
+        },
+        "layers": [
+            {"tile_id": "bushes", "threshold": 0.55, "seed_offset": 1000, "priority": 1},
+            {"tile_id": "trees", "threshold": 0.6, "seed_offset": 2000, "priority": 2},
+            {"tile_id": "hill", "threshold": 0.7, "seed_offset": 3000, "priority": 3},
+        ],
         "monsters": [("Goblin", "g", (100, 200, 100)), ("Wolf", "w", (150, 150, 150)), ("Spider", "s", (50, 50, 50))]
     },
     "plains": {
         "name": "Plains",
-        "terrain_colors": {",": (218, 165, 32), ".": (244, 164, 96)}, 
+        "base_tile": "short_grass",
+        "tiles": {
+            "short_grass": {"symbol": "░", "color": (80, 140, 60), "bg_color": (40, 80, 30)},
+            "tall_grass": {"symbol": "▒", "color": (100, 170, 70), "bg_color": (50, 100, 40)},
+        },
+        "layers": [
+            {"tile_id": "tall_grass", "threshold": 0.55, "seed_offset": 1000, "priority": 1},
+        ],
         "monsters": [("Lion", "L", (255, 215, 0)), ("Eagle", "E", (255, 255, 255)), ("Bandit", "B", (100, 100, 255))]
     },
     "snow": {
         "name": "Snowy Mountain",
-        "terrain_colors": {",": (240, 248, 255), ".": (176, 196, 222)}, 
+        "base_tile": "snow",
+        "tiles": {
+            "snow": {"symbol": "░", "color": (230, 240, 245), "bg_color": (180, 205, 215)},
+            "rocky": {"symbol": "▓", "color": (140, 150, 160), "bg_color": (90, 100, 110)},
+            "trees": {"symbol": "█", "color": (40, 90, 50), "bg_color": (25, 55, 35)},
+        },
+        "layers": [
+            {"tile_id": "rocky", "threshold": 0.6, "seed_offset": 1000, "priority": 1},
+            {"tile_id": "trees", "threshold": 0.65, "seed_offset": 2000, "priority": 2},
+        ],
         "monsters": [("Yeti", "Y", (255, 255, 255)), ("Ice Wolf", "w", (200, 255, 255)), ("Frost Giant", "F", (100, 200, 255))]
     },
     "underground": {
         "name": "Underground",
-        "terrain_colors": {",": (50, 50, 50), ".": (100, 100, 100)}, 
+        "base_tile": "dirt",
+        "tiles": {
+            "dirt": {"symbol": "░", "color": (110, 80, 50), "bg_color": (60, 40, 25)},
+            "moss": {"symbol": "▒", "color": (70, 110, 70), "bg_color": (35, 65, 35)},
+            "mushrooms": {"symbol": "▓", "color": (170, 100, 60), "bg_color": (70, 40, 30)},
+            "stalactite": {"symbol": "█", "color": (120, 120, 130), "bg_color": (60, 60, 70)},
+        },
+        "layers": [
+            {"tile_id": "moss", "threshold": 0.55, "seed_offset": 1000, "priority": 1},
+            {"tile_id": "mushrooms", "threshold": 0.65, "seed_offset": 2000, "priority": 2},
+            {"tile_id": "stalactite", "threshold": 0.75, "seed_offset": 3000, "priority": 3},
+        ],
         "monsters": [("Slime", "S", (0, 255, 0)), ("Bat", "b", (100, 100, 100)), ("Skeleton", "k", (200, 200, 200))]
     }
 }
@@ -91,7 +130,12 @@ def advance_step(
                     # Exit Trigger
                     elif isinstance(placeable, Exit):
                         if gamestate.current_stage < gamestate.max_stages:
-                            return generate_map(player, gamestate.current_stage + 1, gamestate.biome_order)
+                            return generate_map(
+                                player,
+                                gamestate.current_stage + 1,
+                                gamestate.biome_order,
+                                gamestate.run_seed,
+                            )
                         # No exit on last stage (Boss handles win)
 
     elif action_type == "attack" and gamestate.active_encounter is not None:
@@ -142,18 +186,26 @@ def advance_step(
     return gamestate
 
 
-def generate_map(current_player: Optional[Player] = None, stage: int = 1, biome_order: list[str] = None) -> GameState:
+def generate_map(
+    current_player: Optional[Player] = None,
+    stage: int = 1,
+    biome_order: list[str] = None,
+    run_seed: Optional[int] = None,
+) -> GameState:
     """Generate a map with terrain, encounters, and a player."""
     
     # Default biome order if not provided
     if biome_order is None:
         biome_order = ["forest", "plains", "snow", "underground"]
 
+    if run_seed is None:
+        run_seed = random.randint(0, 2**31 - 1)
+
     # Determine biome settings
     biome_index = min((stage - 1) // 5, 3)
     current_biome_key = biome_order[biome_index]
     biome_info = BIOME_DATA[current_biome_key]
-    terrain_colors = biome_info["terrain_colors"]
+    terrain_tiles = biome_info["tiles"]
     monster_list = biome_info["monsters"]
 
     placeables = []
@@ -171,12 +223,30 @@ def generate_map(current_player: Optional[Player] = None, stage: int = 1, biome_
     placeables.append(player)
 
     # Terrain Generation
+    seed = run_seed + stage * 10000 + biome_index * 1000
+    terrain_map = generate_biome_terrain(
+        seed=seed,
+        width=GRID_WIDTH,
+        height=GRID_HEIGHT,
+        base_tile=biome_info["base_tile"],
+        layers=biome_info["layers"],
+        scale=biome_info.get("noise_scale", 0.1),
+    )
+
+    base_tile = biome_info["base_tile"]
     for y in range(1, GRID_HEIGHT - 1):
         for x in range(1, GRID_WIDTH - 1):
-            if (x + y) % 3 == 0:
-                placeables.append(Terrain(x=x, y=y, symbol=",", color=terrain_colors[","]))
-            else:
-                placeables.append(Terrain(x=x, y=y, symbol=".", color=terrain_colors["."]))
+            tile_id = terrain_map[(x, y)]
+            tile_def = terrain_tiles.get(tile_id, terrain_tiles[base_tile])
+            placeables.append(
+                Terrain(
+                    x=x,
+                    y=y,
+                    symbol=tile_def["symbol"],
+                    color=tile_def["color"],
+                    bg_color=tile_def["bg_color"],
+                )
+            )
 
     # Level Specific Generation
     if stage == 20:
@@ -218,4 +288,10 @@ def generate_map(current_player: Optional[Player] = None, stage: int = 1, biome_
             )
             placeables.append(Encounter(x=x, y=y, symbol="#", color=(255, 255, 255), creature=creature))
 
-    return GameState(placeables=placeables, active_encounter=None, current_stage=stage, biome_order=biome_order)
+    return GameState(
+        placeables=placeables,
+        active_encounter=None,
+        current_stage=stage,
+        biome_order=biome_order,
+        run_seed=run_seed,
+    )
