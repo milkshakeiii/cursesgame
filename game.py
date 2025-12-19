@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 import pygame
+import pygame.freetype
 import random
 from game_data import GRID_HEIGHT, GRID_WIDTH
 from gameplay import generate_map
 from graphics import SpriteManager
 from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen, BiomeOrderScreen, TeamArrangementScreen
 
-TILE_SIZE = 24
-SCREEN_WIDTH = GRID_WIDTH * TILE_SIZE
-SCREEN_HEIGHT = GRID_HEIGHT * TILE_SIZE
+SCALE = 1
+
+# Initialize to calculate screen dimensions
+pygame.freetype.init()
+_temp_sm = SpriteManager(scale=SCALE)
+SCREEN_WIDTH = GRID_WIDTH * _temp_sm.tile_width
+SCREEN_HEIGHT = GRID_HEIGHT * _temp_sm.tile_height
+del _temp_sm
+
 
 class Game:
     def __init__(self, screen):
@@ -16,7 +23,7 @@ class Game:
         self.running = True
         self.screen = screen
         self.render_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        self.sprite_manager = SpriteManager(tile_size=TILE_SIZE)
+        self.sprite_manager = SpriteManager(scale=SCALE)
 
         # Initialize screens
         self.map_view = MapView()
@@ -55,8 +62,20 @@ class Game:
         if screen_size == (SCREEN_WIDTH, SCREEN_HEIGHT):
             self.screen.blit(self.render_surface, (0, 0))
         else:
-            scaled = pygame.transform.scale(self.render_surface, screen_size)
-            self.screen.blit(scaled, (0, 0))
+            # Use integer scaling to avoid moiré patterns
+            scale_x = screen_size[0] // SCREEN_WIDTH
+            scale_y = screen_size[1] // SCREEN_HEIGHT
+            scale = max(1, min(scale_x, scale_y))
+
+            scaled_w = SCREEN_WIDTH * scale
+            scaled_h = SCREEN_HEIGHT * scale
+
+            # Center on screen with black letterboxing
+            self.screen.fill((0, 0, 0))
+            scaled = pygame.transform.scale(self.render_surface, (scaled_w, scaled_h))
+            offset_x = (screen_size[0] - scaled_w) // 2
+            offset_y = (screen_size[1] - scaled_h) // 2
+            self.screen.blit(scaled, (offset_x, offset_y))
 
 def main():
     pygame.init()

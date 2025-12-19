@@ -273,61 +273,62 @@ class TeamArrangementScreen(Screen):
         if not player: return
 
         # --- GRID RENDER ---
-        tile_size = game.sprite_manager.tile_size * 2
-        grid_start_x = center_x - (1.5 * tile_size)
-        grid_start_y = center_y - (2.0 * tile_size)
+        tile_w = game.sprite_manager.tile_width * 2
+        tile_h = game.sprite_manager.tile_height * 2
+        grid_start_x = center_x - (1.5 * tile_w)
+        grid_start_y = center_y - (2.0 * tile_h)
 
         for i in range(9):
             grid_x = i % 3
             grid_y = i // 3
-            x = grid_start_x + grid_x * tile_size
-            y = grid_start_y + grid_y * tile_size
-            
-            pygame.draw.rect(screen, (50, 50, 50), (x, y, tile_size, tile_size), 1)
-            
+            x = grid_start_x + grid_x * tile_w
+            y = grid_start_y + grid_y * tile_h
+
+            pygame.draw.rect(screen, (50, 50, 50), (x, y, tile_w, tile_h), 1)
+
             creature = player.creatures[i]
-            
+
             if self.selected_area == "grid" and i == self.selected_index:
-                pygame.draw.rect(screen, (255, 255, 0), (x, y, tile_size, tile_size), 2)
-            
+                pygame.draw.rect(screen, (255, 255, 0), (x, y, tile_w, tile_h), 2)
+
             if self.swap_source == ("grid", i):
-                pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_size-8, tile_size-8), 2)
+                pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_w-8, tile_h-8), 2)
 
             if creature:
                 sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
-                scaled = pygame.transform.scale(sprite, (tile_size, tile_size))
+                scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
                 screen.blit(scaled, (x, y))
-                
+
                 if self.selected_area == "grid" and i == self.selected_index:
-                     self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, grid_start_y + 3 * tile_size + 20, (255, 255, 255), self.font, centered=True)
+                     self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, grid_start_y + 3 * tile_h + 20, (255, 255, 255), self.font, centered=True)
 
         # --- PENDING RENDER ---
         pending = game.gamestate.pending_recruits or []
         if pending:
-            self.draw_text(screen, "PENDING RECRUITS", center_x, grid_start_y + 3 * tile_size + 50, (100, 200, 255), self.font, centered=True)
-            
-            pending_start_x = center_x - (len(pending) * tile_size) // 2
-            pending_y = grid_start_y + 3 * tile_size + 80
-            
+            self.draw_text(screen, "PENDING RECRUITS", center_x, grid_start_y + 3 * tile_h + 50, (100, 200, 255), self.font, centered=True)
+
+            pending_start_x = center_x - (len(pending) * tile_w) // 2
+            pending_y = grid_start_y + 3 * tile_h + 80
+
             for i, creature in enumerate(pending):
-                x = pending_start_x + i * tile_size
+                x = pending_start_x + i * tile_w
                 y = pending_y
-                
-                pygame.draw.rect(screen, (50, 50, 50), (x, y, tile_size, tile_size), 1)
-                
+
+                pygame.draw.rect(screen, (50, 50, 50), (x, y, tile_w, tile_h), 1)
+
                 # Highlight
                 if self.selected_area == "pending" and i == self.selected_index:
-                    pygame.draw.rect(screen, (255, 255, 0), (x, y, tile_size, tile_size), 2)
-                
+                    pygame.draw.rect(screen, (255, 255, 0), (x, y, tile_w, tile_h), 2)
+
                 if self.swap_source == ("pending", i):
-                    pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_size-8, tile_size-8), 2)
-                
+                    pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_w-8, tile_h-8), 2)
+
                 sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
-                scaled = pygame.transform.scale(sprite, (tile_size, tile_size))
+                scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
                 screen.blit(scaled, (x, y))
 
                 if self.selected_area == "pending" and i == self.selected_index:
-                     self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, pending_y + tile_size + 20, (200, 200, 255), self.font, centered=True)
+                     self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, pending_y + tile_h + 20, (200, 200, 255), self.font, centered=True)
 
 class MainMenu(Screen):
     """Main menu screen."""
@@ -646,15 +647,16 @@ class EncounterScreen(Screen):
 
         # --- BATTLE GRID (Right Top) ---
         # Grid is 6 tiles wide (3 player + 3 enemy), 3 tiles high
-        tile_size = game.sprite_manager.tile_size
-        grid_width_pixels = 6 * tile_size
-        grid_height_pixels = 3 * tile_size
-        
+        tile_w = game.sprite_manager.tile_width
+        tile_h = game.sprite_manager.tile_height
+        grid_width_pixels = 6 * tile_w
+        grid_height_pixels = 3 * tile_h
+
         grid_start_x = half_width + (half_width - grid_width_pixels) // 2
         grid_start_y = (half_height - grid_height_pixels) // 2
 
         # Draw Grid Highlights
-        self._render_highlights(screen, game, grid_start_x, grid_start_y, tile_size)
+        self._render_highlights(screen, game, grid_start_x, grid_start_y, tile_w, tile_h)
 
         # Draw Grid Entities
         player_team = game.gamestate.active_encounter.player_team
@@ -690,13 +692,13 @@ class EncounterScreen(Screen):
         for i, (text, color) in enumerate(instructions):
             self.draw_text(screen, text, action_x, action_y + 40 + i * 25, color, self.font)
 
-    def _render_highlights(self, screen: pygame.Surface, game: "game_module.Game", start_x: int, start_y: int, tile_size: int):
+    def _render_highlights(self, screen: pygame.Surface, game: "game_module.Game", start_x: int, start_y: int, tile_w: int, tile_h: int):
         # Create a transparent surface for highlights
-        highlight_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
-        
+        highlight_surf = pygame.Surface((tile_w, tile_h), pygame.SRCALPHA)
+
         # Determine active region to highlight
         active_region = None # (start_col, end_col, color)
-        
+
         if self.mode == EncounterMode.ATTACK:
             active_region = (3, 6, (255, 255, 100, 50)) # Enemy side, Yellow tint
         elif self.mode == EncounterMode.CONVERT:
@@ -711,18 +713,18 @@ class EncounterScreen(Screen):
             highlight_surf.fill(color)
             for y in range(3):
                 for x in range(col_start, col_end):
-                    screen.blit(highlight_surf, (start_x + x * tile_size, start_y + y * tile_size))
-        
+                    screen.blit(highlight_surf, (start_x + x * tile_w, start_y + y * tile_h))
+
         # Highlight Selected Entity (Cursor)
-        cursor_surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
+        cursor_surf = pygame.Surface((tile_w, tile_h), pygame.SRCALPHA)
         cursor_surf.fill((255, 255, 255, 50)) # White highlight
         pygame.draw.rect(cursor_surf, (255, 255, 255), cursor_surf.get_rect(), 2) # Border
 
         sel_x_offset = 0 if self.selected_side == "player" else 3
         sel_x = (self.selected_index % 3) + sel_x_offset
         sel_y = self.selected_index // 3
-        
-        screen.blit(cursor_surf, (start_x + sel_x * tile_size, start_y + sel_y * tile_size))
+
+        screen.blit(cursor_surf, (start_x + sel_x * tile_w, start_y + sel_y * tile_h))
 
     def _render_team(self, screen: pygame.Surface, game: "game_module.Game", team: list, start_x: int, start_y: int, x_offset: int):
         if not team: return
@@ -731,4 +733,4 @@ class EncounterScreen(Screen):
                 grid_x = (i % 3) + x_offset
                 grid_y = i // 3
                 sprite = game.sprite_manager.get_sprite(entity.symbol, entity.color)
-                screen.blit(sprite, (start_x + grid_x * game.sprite_manager.tile_size, start_y + grid_y * game.sprite_manager.tile_size))
+                screen.blit(sprite, (start_x + grid_x * game.sprite_manager.tile_width, start_y + grid_y * game.sprite_manager.tile_height))
