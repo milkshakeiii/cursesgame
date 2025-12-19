@@ -57,25 +57,12 @@ class Game:
 
     def render(self) -> None:
         self.current_screen().render(self.render_surface, self)
-        # Scale render surface to fit the screen
         screen_size = self.screen.get_size()
         if screen_size == (SCREEN_WIDTH, SCREEN_HEIGHT):
             self.screen.blit(self.render_surface, (0, 0))
         else:
-            # Use integer scaling to avoid moiré patterns
-            scale_x = screen_size[0] // SCREEN_WIDTH
-            scale_y = screen_size[1] // SCREEN_HEIGHT
-            scale = max(1, min(scale_x, scale_y))
-
-            scaled_w = SCREEN_WIDTH * scale
-            scaled_h = SCREEN_HEIGHT * scale
-
-            # Center on screen with black letterboxing
-            self.screen.fill((0, 0, 0))
-            scaled = pygame.transform.scale(self.render_surface, (scaled_w, scaled_h))
-            offset_x = (screen_size[0] - scaled_w) // 2
-            offset_y = (screen_size[1] - scaled_h) // 2
-            self.screen.blit(scaled, (offset_x, offset_y))
+            scaled = pygame.transform.scale(self.render_surface, screen_size)
+            self.screen.blit(scaled, (0, 0))
 
 def main():
     pygame.init()
