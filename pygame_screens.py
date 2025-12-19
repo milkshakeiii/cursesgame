@@ -267,7 +267,7 @@ class TeamArrangementScreen(Screen):
         center_y = screen.get_height() // 2
         
         self.draw_text(screen, "TEAM ARRANGEMENT", center_x, 30, (255, 255, 0), self.header_font, centered=True)
-        self.draw_text(screen, "Arrows/Numpad: Move | Enter: Swap/Place | Del: Dismiss | ESC: Done", center_x, screen.get_height() - 30, (150, 150, 150), self.font, centered=True)
+        self.draw_text(screen, "Enter: Swap | Del: Dismiss | ESC: Done", center_x, screen.get_height() - 30, (150, 150, 150), self.font, centered=True)
 
         player = self._get_player(game)
         if not player: return
