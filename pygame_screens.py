@@ -18,8 +18,11 @@ class EncounterMode(Enum):
     NORMAL = "normal"
     ATTACK = "attack"
     CONVERT = "convert"
+    MOVE = "move"  # Move a unit
     SELECTING_ALLY = "selecting_ally"
     SELECTING_ENEMY = "selecting_enemy"
+    SELECTING_MOVE_SOURCE = "selecting_move_source"  # Select unit to move
+    SELECTING_MOVE_TARGET = "selecting_move_target"  # Select destination
 
 class Screen(ABC):
     """Base class for screens in the game."""
@@ -295,12 +298,28 @@ class TeamArrangementScreen(Screen):
                 pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_w-8, tile_h-8), 2)
 
             if creature:
-                sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
-                scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
-                screen.blit(scaled, (x, y))
+                # Handle 2x2 units
+                size = getattr(creature, "size", "1x1")
+                if size == "2x2":
+                    glyphs = getattr(creature, "glyphs", None) or [creature.symbol] * 4
+                    # Render 4 glyphs in 2x2 pattern within the cell
+                    half_w = tile_w // 2
+                    half_h = tile_h // 2
+                    for gi, (dx, dy) in enumerate([(0, 0), (1, 0), (0, 1), (1, 1)]):
+                        glyph = glyphs[gi] if gi < len(glyphs) else creature.symbol
+                        sprite = game.sprite_manager.get_sprite(glyph, creature.color)
+                        scaled = pygame.transform.scale(sprite, (half_w, half_h))
+                        screen.blit(scaled, (x + dx * half_w, y + dy * half_h))
+                else:
+                    sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
+                    scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
+                    screen.blit(scaled, (x, y))
 
                 if self.selected_area == "grid" and i == self.selected_index:
-                     self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, grid_start_y + 3 * tile_h + 20, (255, 255, 255), self.font, centered=True)
+                    tier = getattr(creature, "tier", 0)
+                    tier_text = f" (Tier {tier})" if tier > 0 else ""
+                    size_text = " [2x2]" if size == "2x2" else ""
+                    self.draw_text(screen, f"{creature.name}{tier_text}{size_text}", center_x, grid_start_y + 3 * tile_h + 20, (255, 255, 255), self.font, centered=True)
 
         # --- PENDING RENDER ---
         pending = game.gamestate.pending_recruits or []
@@ -323,12 +342,27 @@ class TeamArrangementScreen(Screen):
                 if self.swap_source == ("pending", i):
                     pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_w-8, tile_h-8), 2)
 
-                sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
-                scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
-                screen.blit(scaled, (x, y))
+                # Handle 2x2 units
+                size = getattr(creature, "size", "1x1")
+                if size == "2x2":
+                    glyphs = getattr(creature, "glyphs", None) or [creature.symbol] * 4
+                    half_w = tile_w // 2
+                    half_h = tile_h // 2
+                    for gi, (dx, dy) in enumerate([(0, 0), (1, 0), (0, 1), (1, 1)]):
+                        glyph = glyphs[gi] if gi < len(glyphs) else creature.symbol
+                        sprite = game.sprite_manager.get_sprite(glyph, creature.color)
+                        scaled = pygame.transform.scale(sprite, (half_w, half_h))
+                        screen.blit(scaled, (x + dx * half_w, y + dy * half_h))
+                else:
+                    sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
+                    scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
+                    screen.blit(scaled, (x, y))
 
                 if self.selected_area == "pending" and i == self.selected_index:
-                     self.draw_text(screen, f"{creature.name} (Lvl {creature.level})", center_x, pending_y + tile_h + 20, (200, 200, 255), self.font, centered=True)
+                    tier = getattr(creature, "tier", 0)
+                    tier_text = f" (Tier {tier})" if tier > 0 else ""
+                    size_text = " [2x2]" if size == "2x2" else ""
+                    self.draw_text(screen, f"{creature.name}{tier_text}{size_text}", center_x, pending_y + tile_h + 20, (200, 200, 255), self.font, centered=True)
 
 class MainMenu(Screen):
     """Main menu screen."""
@@ -524,7 +558,9 @@ class EncounterScreen(Screen):
         self.mode = EncounterMode.NORMAL
         self.selected_side = "enemy"  # "player" or "enemy"
         self.selected_index = 4  # Index 0-8 in the grid (default to middle)
+        self.move_source_idx = None  # Index of unit being moved
         self.font = pygame.font.SysFont("monospace", 20)
+        self.small_font = pygame.font.SysFont("monospace", 16)
         self.header_font = pygame.font.SysFont("monospace", 24, bold=True)
         self.target_selection_map = {
             pygame.K_KP7: (0, 0), pygame.K_7: (0, 0),
@@ -575,12 +611,49 @@ class EncounterScreen(Screen):
                     self.mode = EncounterMode.NORMAL
                     return True
             
+            elif self.mode == EncounterMode.SELECTING_MOVE_SOURCE:
+                if event.key in self.target_selection_map:
+                    grid_x, grid_y = self.target_selection_map[event.key]
+                    grid_index = grid_y * ENCOUNTER_GRID_WIDTH + grid_x
+                    # Check if there's a unit to move
+                    team = game.gamestate.active_encounter.player_team
+                    if team and team[grid_index] is not None:
+                        self.move_source_idx = grid_index
+                        self.mode = EncounterMode.SELECTING_MOVE_TARGET
+                    return True
+                elif event.key == pygame.K_ESCAPE:
+                    self.mode = EncounterMode.NORMAL
+                    return True
+
+            elif self.mode == EncounterMode.SELECTING_MOVE_TARGET:
+                if event.key in self.target_selection_map:
+                    grid_x, grid_y = self.target_selection_map[event.key]
+                    target_idx = grid_y * ENCOUNTER_GRID_WIDTH + grid_x
+                    # Calculate direction
+                    src_col = self.move_source_idx % 3
+                    src_row = self.move_source_idx // 3
+                    dx = grid_x - src_col
+                    dy = grid_y - src_row
+                    # Only allow orthogonal movement
+                    if abs(dx) + abs(dy) == 1:
+                        game.gamestate = advance_step(game.gamestate, ("move_unit", self.move_source_idx, (dx, dy)))
+                    self.mode = EncounterMode.NORMAL
+                    self.move_source_idx = None
+                    return True
+                elif event.key == pygame.K_ESCAPE:
+                    self.mode = EncounterMode.NORMAL
+                    self.move_source_idx = None
+                    return True
+
             else: # Normal Mode
                 if event.key == pygame.K_a:
                     self.mode = EncounterMode.ATTACK
                     return True
                 elif event.key == pygame.K_c:
                     self.mode = EncounterMode.CONVERT
+                    return True
+                elif event.key == pygame.K_m:
+                    self.mode = EncounterMode.SELECTING_MOVE_SOURCE
                     return True
                 elif event.key == pygame.K_q:
                     self.mode = EncounterMode.SELECTING_ALLY
@@ -629,21 +702,71 @@ class EncounterScreen(Screen):
 
         # --- INFO PANEL (Left) ---
         self.draw_text(screen, "BATTLE INFO", 20, 20, (255, 255, 0), self.header_font)
-        
+
+        # Turn indicator
+        current_turn = getattr(game.gamestate.active_encounter, "current_turn", "player")
+        turn_color = (100, 255, 100) if current_turn == "player" else (255, 100, 100)
+        turn_text = "YOUR TURN" if current_turn == "player" else "ENEMY TURN"
+        self.draw_text(screen, turn_text, 20, 50, turn_color, self.font)
+
         selected_entity = self._get_selected_entity(game)
         if selected_entity:
             side_label = "Ally" if self.selected_side == "player" else "Enemy"
             name = getattr(selected_entity, "name", "Unknown")
-            
-            self.draw_text(screen, f"{side_label}: {name}", 20, 60, (200, 200, 200), self.font)
-            
+
+            self.draw_text(screen, f"{side_label}: {name}", 20, 85, (200, 200, 200), self.font)
+
             hp_color = (0, 255, 0) if selected_entity.current_health > 30 else (255, 100, 100)
-            self.draw_text(screen, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", 20, 90, hp_color, self.font)
-            
-            if hasattr(selected_entity, "current_convert"):
-                self.draw_text(screen, f"Convert: {selected_entity.current_convert}/100", 20, 120, (150, 150, 255), self.font)
+            self.draw_text(screen, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", 20, 110, hp_color, self.font)
+
+            # Defense stats
+            y_offset = 135
+            defense = getattr(selected_entity, "defense", getattr(selected_entity, "base_defense", 0))
+            dodge = getattr(selected_entity, "dodge", getattr(selected_entity, "base_dodge", 0))
+            resistance = getattr(selected_entity, "resistance", getattr(selected_entity, "base_resistance", 0))
+            self.draw_text(screen, f"DEF:{defense} DOD:{dodge} RES:{resistance}", 20, y_offset, (150, 200, 150), self.small_font)
+            y_offset += 22
+
+            # Conversion progress (for enemies)
+            if hasattr(selected_entity, "conversion_progress"):
+                progress = getattr(selected_entity, "conversion_progress", 0)
+                max_conv = selected_entity.max_health
+                self.draw_text(screen, f"Convert: {progress}/{max_conv}", 20, y_offset, (150, 150, 255), self.small_font)
+                y_offset += 22
+
+            # Attacks
+            attacks = getattr(selected_entity, "attacks", [])
+            if attacks:
+                self.draw_text(screen, "Attacks:", 20, y_offset, (255, 200, 100), self.small_font)
+                y_offset += 20
+                for attack in attacks[:3]:  # Limit display
+                    atk_text = f"  {attack.attack_type}: {attack.damage}"
+                    if attack.range_min and attack.range_max:
+                        atk_text += f" ({attack.range_min}-{attack.range_max})"
+                    if attack.abilities:
+                        atk_text += f" [{', '.join(attack.abilities[:2])}]"
+                    self.draw_text(screen, atk_text, 20, y_offset, (200, 180, 100), self.small_font)
+                    y_offset += 18
+
+            # Abilities
+            abilities = getattr(selected_entity, "abilities", [])
+            if abilities:
+                self.draw_text(screen, "Abilities:", 20, y_offset, (100, 200, 255), self.small_font)
+                y_offset += 20
+                for ability in abilities[:3]:  # Limit display
+                    self.draw_text(screen, f"  {ability}", 20, y_offset, (150, 200, 255), self.small_font)
+                    y_offset += 18
+
+            # Debuffs
+            debuffs = getattr(selected_entity, "debuffs", {})
+            if debuffs:
+                self.draw_text(screen, "Debuffs:", 20, y_offset, (255, 100, 100), self.small_font)
+                y_offset += 20
+                for debuff, stacks in debuffs.items():
+                    self.draw_text(screen, f"  {debuff} x{stacks}", 20, y_offset, (255, 150, 150), self.small_font)
+                    y_offset += 18
         else:
-            self.draw_text(screen, "No selection / Empty slot", 20, 60, (150, 150, 150), self.font)
+            self.draw_text(screen, "No selection / Empty slot", 20, 85, (150, 150, 150), self.font)
 
         # --- BATTLE GRID (Right Top) ---
         # Grid is 6 tiles wide (3 player + 3 enemy), 3 tiles high
@@ -677,6 +800,10 @@ class EncounterScreen(Screen):
             instructions = [("Select ATTACK target:", (255, 255, 100)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
         elif self.mode == EncounterMode.CONVERT:
             instructions = [("Select CONVERT target:", (150, 150, 255)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
+        elif self.mode == EncounterMode.SELECTING_MOVE_SOURCE:
+            instructions = [("Select unit to MOVE:", (100, 255, 100)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
+        elif self.mode == EncounterMode.SELECTING_MOVE_TARGET:
+            instructions = [("Select adjacent square:", (100, 255, 100)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
         elif self.mode in (EncounterMode.SELECTING_ALLY, EncounterMode.SELECTING_ENEMY):
             target = "ALLY" if self.mode == EncounterMode.SELECTING_ALLY else "ENEMY"
             instructions = [(f"Select {target}:", (255, 255, 100)), ("Use numpad 1-9", (200, 200, 200)), ("ESC to cancel", (150, 150, 150))]
@@ -684,6 +811,7 @@ class EncounterScreen(Screen):
             instructions = [
                 ("[A] Attack", (200, 200, 200)),
                 ("[C] Convert", (200, 200, 200)),
+                ("[M] Move unit", (200, 200, 200)),
                 ("[Q] Select Ally", (200, 200, 200)),
                 ("[E] Select Enemy", (200, 200, 200)),
                 ("[F] Flee", (200, 200, 200))
@@ -727,10 +855,50 @@ class EncounterScreen(Screen):
         screen.blit(cursor_surf, (start_x + sel_x * tile_w, start_y + sel_y * tile_h))
 
     def _render_team(self, screen: pygame.Surface, game: "game_module.Game", team: list, start_x: int, start_y: int, x_offset: int):
-        if not team: return
+        if not team:
+            return
+
+        tile_w = game.sprite_manager.tile_width
+        tile_h = game.sprite_manager.tile_height
+
+        # Track rendered 2x2 units to avoid double-rendering
+        rendered_2x2 = set()
+
         for i, entity in enumerate(team):
-            if entity:
-                grid_x = (i % 3) + x_offset
-                grid_y = i // 3
+            if entity is None:
+                continue
+
+            # Skip if already rendered as part of a 2x2 unit
+            if id(entity) in rendered_2x2:
+                continue
+
+            grid_x = (i % 3) + x_offset
+            grid_y = i // 3
+
+            size = getattr(entity, "size", "1x1")
+            if size == "2x2":
+                # Mark as rendered
+                rendered_2x2.add(id(entity))
+
+                # Get the 4 glyphs or use symbol for all
+                glyphs = getattr(entity, "glyphs", None) or [entity.symbol] * 4
+                color = entity.color
+
+                # Find top-left position of this 2x2 unit
+                # Check all positions to find the minimum row/col
+                positions = [idx for idx, e in enumerate(team) if e is entity]
+                if positions:
+                    min_row = min(p // 3 for p in positions)
+                    min_col = min(p % 3 for p in positions)
+
+                    # Render all 4 glyphs: TL, TR, BL, BR
+                    glyph_positions = [(0, 0), (1, 0), (0, 1), (1, 1)]
+                    for (dx, dy), glyph in zip(glyph_positions, glyphs):
+                        sprite = game.sprite_manager.get_sprite(glyph, color)
+                        px = start_x + (min_col + dx + x_offset) * tile_w
+                        py = start_y + (min_row + dy) * tile_h
+                        screen.blit(sprite, (px, py))
+            else:
+                # Normal 1x1 rendering
                 sprite = game.sprite_manager.get_sprite(entity.symbol, entity.color)
-                screen.blit(sprite, (start_x + grid_x * game.sprite_manager.tile_width, start_y + grid_y * game.sprite_manager.tile_height))
+                screen.blit(sprite, (start_x + grid_x * tile_w, start_y + grid_y * tile_h))
