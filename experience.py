@@ -5,42 +5,56 @@ from typing import Optional
 from game_data import Creature, Encounter, Player
 
 
-def calculate_tier_requirement(base_requirement: int, tier: int, hero_int: int) -> int:
-    """Calculate battles needed for a specific tier.
+def get_max_tier(creature: Creature) -> int:
+    """Get the maximum tier defined for a creature.
 
-    Formula: base + floor((tier - 1) / 2) - floor(INT / 5)
-    Minimum 1 battle required.
-
-    tier_requirement increases by 1 every two tiers.
-    INT reduces requirement by 1 per +5 INT.
+    Returns 0 if no tier_bonuses are defined.
     """
-    tier_bonus = (tier - 1) // 2
-    int_reduction = hero_int // 5
-    return max(1, base_requirement + tier_bonus - int_reduction)
+    if not creature.tier_bonuses:
+        return 0
+
+    max_tier = 0
+    for bonus in creature.tier_bonuses:
+        tier = bonus.get("tier", 0)
+        if tier > max_tier:
+            max_tier = tier
+    return max_tier
 
 
-def calculate_total_battles_for_tier(creature: Creature, tier: int, hero_int: int) -> int:
-    """Calculate total battles needed to reach a tier.
+def get_battles_for_tier(creature: Creature, tier: int) -> Optional[int]:
+    """Get the total battles required to reach a specific tier.
 
-    Total is the sum of requirements for all tiers up to and including the target tier.
+    Returns None if the tier is not defined in tier_bonuses.
+    Uses the explicit 'battles' field from tier_bonuses.
     """
-    total = 0
-    for t in range(1, tier + 1):
-        total += calculate_tier_requirement(creature.base_requirement, t, hero_int)
-    return total
+    if not creature.tier_bonuses:
+        return None
+
+    for bonus in creature.tier_bonuses:
+        if bonus.get("tier") == tier:
+            return bonus.get("battles")
+
+    return None
 
 
 def check_tier_upgrade(creature: Creature, hero_int: int) -> bool:
     """Check if creature should upgrade to next tier.
 
     Returns True if upgrade happened.
+    Uses explicit battle thresholds from tier_bonuses.
+    hero_int is kept for API compatibility but no longer affects thresholds.
     """
     # No progression if base_requirement is 0 (like Yeti, Skeleton)
     if creature.base_requirement == 0:
         return False
 
     next_tier = creature.tier + 1
-    required_battles = calculate_total_battles_for_tier(creature, next_tier, hero_int)
+
+    # Check if next tier is defined
+    required_battles = get_battles_for_tier(creature, next_tier)
+    if required_battles is None:
+        # No more tiers defined - can't upgrade
+        return False
 
     if creature.battles_completed >= required_battles:
         creature.apply_tier_bonus(next_tier)
@@ -230,6 +244,7 @@ def get_tier_progress(creature: Creature, hero_int: int) -> dict:
     """Get information about creature's tier progression.
 
     Returns dict with current tier, battles completed, and battles needed for next tier.
+    hero_int is kept for API compatibility but no longer affects thresholds.
     """
     if creature.base_requirement == 0:
         return {
@@ -240,8 +255,19 @@ def get_tier_progress(creature: Creature, hero_int: int) -> dict:
         }
 
     next_tier = creature.tier + 1
-    battles_needed = calculate_total_battles_for_tier(creature, next_tier, hero_int)
-    current_tier_battles = calculate_total_battles_for_tier(creature, creature.tier, hero_int) if creature.tier > 0 else 0
+    battles_needed = get_battles_for_tier(creature, next_tier)
+
+    # If no more tiers defined, show as maxed out
+    if battles_needed is None:
+        return {
+            "tier": creature.tier,
+            "battles": creature.battles_completed,
+            "next_tier_battles": None,
+            "progress_percent": 100,
+        }
+
+    current_tier_battles = get_battles_for_tier(creature, creature.tier) if creature.tier > 0 else 0
+    current_tier_battles = current_tier_battles or 0
     battles_for_tier = battles_needed - current_tier_battles
 
     battles_into_tier = creature.battles_completed - current_tier_battles

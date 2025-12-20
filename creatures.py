@@ -42,9 +42,10 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 abilities=[],
                 base_requirement=5,
                 tier_bonuses=[
-                    {"tier": 1, "abilities": ["Pack Hunter"]},
+                    {"tier": 1, "battles": 5, "abilities": ["Pack Hunter"]},
                     {
                         "tier": 2,
+                        "battles": 10,
                         "defense": 2,
                         "dodge": 2,
                         "resistance": 2,
@@ -71,6 +72,7 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 tier_bonuses=[
                     {
                         "tier": 1,
+                        "battles": 10,
                         "size": "2x2",
                         "glyphs": ["s", "s", "s", "s"],
                         "max_health": 15,
@@ -98,8 +100,8 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 abilities=[],
                 base_requirement=6,
                 tier_bonuses=[
-                    {"tier": 1, "defense": 1, "melee_damage": 2},
-                    {"tier": 2, "abilities": ["Shield Wall"]},
+                    {"tier": 1, "battles": 6, "defense": 1, "melee_damage": 2},
+                    {"tier": 2, "battles": 12, "abilities": ["Shield Wall"]},
                 ],
             ),
         },
@@ -123,6 +125,7 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 tier_bonuses=[
                     {
                         "tier": 1,
+                        "battles": 8,
                         "defense": 1,
                         "dodge": 1,
                         "resistance": 1,
@@ -151,6 +154,7 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 tier_bonuses=[
                     {
                         "tier": 1,
+                        "battles": 7,
                         "new_attack": {"type": "ranged", "damage": 6, "range": "2-3"},
                         "abilities": ["Evasion 50%"],
                     },
@@ -172,16 +176,17 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 abilities=[],
                 base_requirement=5,
                 tier_bonuses=[
-                    {"tier": 1, "abilities": ["Protector"]},
+                    {"tier": 1, "battles": 5, "abilities": ["Protector"]},
                     {
                         "tier": 2,
+                        "battles": 10,
                         "defense": 2,
                         "dodge": 2,
                         "resistance": 2,
                         "melee_damage": 4,
                         "max_health": 8,
                     },
-                    {"tier": 3, "abilities": ["Guardian"]},
+                    {"tier": 3, "battles": 15, "abilities": ["Guardian"]},
                 ],
             ),
             "Scorpion": Creature(
@@ -198,7 +203,7 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 abilities=[],
                 base_requirement=9,
                 tier_bonuses=[
-                    {"tier": 1, "attack_abilities": {"ranged": ["Silencing"]}},
+                    {"tier": 1, "battles": 9, "attack_abilities": {"ranged": ["Silencing"]}},
                 ],
             ),
         },
@@ -244,9 +249,10 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 abilities=[],
                 base_requirement=6,
                 tier_bonuses=[
-                    {"tier": 1, "abilities": ["Shield Wall"]},
+                    {"tier": 1, "battles": 6, "abilities": ["Shield Wall"]},
                     {
                         "tier": 2,
+                        "battles": 12,
                         "defense": 1,
                         "dodge": 1,
                         "resistance": 1,
@@ -272,7 +278,7 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 abilities=["Healing 3"],
                 base_requirement=7,
                 tier_bonuses=[
-                    {"tier": 1, "magic_damage": 1, "healing_bonus": 1},
+                    {"tier": 1, "battles": 7, "magic_damage": 1, "healing_bonus": 1},
                 ],
             ),
         },
@@ -312,6 +318,7 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 tier_bonuses=[
                     {
                         "tier": 1,
+                        "battles": 10,
                         "size": "2x2",
                         "glyphs": ["S", "S", "S", "S"],
                         "max_health": 16,
@@ -339,8 +346,8 @@ CREATURE_REGISTRY: dict[str, dict[str, dict[str, Creature]]] = {
                 abilities=["Lifelink"],
                 base_requirement=6,
                 tier_bonuses=[
-                    {"tier": 1, "melee_damage": 1, "max_health": 2},
-                    {"tier": 2, "dodge": 1, "melee_damage": 1, "max_health": 2},
+                    {"tier": 1, "battles": 6, "melee_damage": 1, "max_health": 2},
+                    {"tier": 2, "battles": 12, "dodge": 1, "melee_damage": 1, "max_health": 2},
                 ],
             ),
         },
