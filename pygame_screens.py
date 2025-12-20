@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING, Optional, Union
 from enum import Enum
 
 from game_data import GRID_HEIGHT, GRID_WIDTH, Player, Creature
-from gameplay import advance_step
+from gameplay import advance_step, select_best_attack, calculate_expected_result
+from combat import get_hero_attacks
 
 if TYPE_CHECKING:
     import game as game_module
@@ -1642,39 +1643,139 @@ class EncounterScreen(Screen):
             self.draw_text(screen, display_entry, log_x, log_y, color, self.small_font)
             log_y += log_line_height
 
+    def _calculate_position_damage(self, game: "game_module.Game", target_row: int, target_col: int, for_conversion: bool) -> int:
+        """Calculate total base damage all allies can deal to a specific enemy position.
+
+        Uses simple targeting rules:
+        - Ranged: can hit squares within attack range
+        - Magic: can hit squares in the mirror column (same row position)
+        - Melee: can only hit if target is the first enemy in attacker's row
+        """
+        if game.gamestate.active_encounter is None:
+            return 0
+
+        encounter = game.gamestate.active_encounter
+        player_team = encounter.player_team
+        enemy_team = encounter.enemy_team
+        if not player_team:
+            return 0
+
+        total_damage = 0
+        processed_units = set()  # Track 2x2 units to avoid double-counting
+
+        for idx, unit in enumerate(player_team):
+            if unit is None:
+                continue
+
+            # Skip if already processed (2x2 unit)
+            if id(unit) in processed_units:
+                continue
+            processed_units.add(id(unit))
+
+            attacker_row = idx // 3
+            attacker_col = idx % 3
+
+            # Get attacks for this unit
+            if isinstance(unit, Player):
+                attacks = get_hero_attacks(unit)
+            else:
+                attacks = unit.attacks or []
+
+            if not attacks:
+                continue
+
+            # Check each attack type
+            for attack in attacks:
+                can_hit = False
+
+                if attack.attack_type == "ranged":
+                    # Ranged can hit squares within range
+                    # Distance is column-based: attacker is in player grid (0-2), target is in enemy grid (0-2)
+                    # Distance = (3 - attacker_col) + target_col (crossing the gap between grids)
+                    distance = (3 - attacker_col) + target_col
+                    range_min = attack.range_min or 1
+                    range_max = attack.range_max or 99
+                    can_hit = (range_min <= distance <= range_max)
+
+                elif attack.attack_type == "magic":
+                    # Magic hits mirror column (front->front, middle->middle, back->back)
+                    # Mirror column: player col 0 (back) hits enemy col 2 (back), etc.
+                    mirror_col = 2 - attacker_col
+                    can_hit = (target_col == mirror_col)
+
+                elif attack.attack_type == "melee":
+                    # Melee can only hit if on same row, target is first enemy,
+                    # and no ally is blocking (in front of attacker)
+                    if attacker_row == target_row:
+                        # Check if blocked by ally in front (columns > attacker_col for player)
+                        blocked = False
+                        for col in range(attacker_col + 1, 3):
+                            ally_idx = attacker_row * 3 + col
+                            if player_team and player_team[ally_idx] is not None:
+                                blocked = True
+                                break
+
+                        if not blocked:
+                            # Find first enemy in this row
+                            first_enemy_col = None
+                            for col in range(3):
+                                enemy_idx = attacker_row * 3 + col
+                                if enemy_team and enemy_team[enemy_idx] is not None:
+                                    first_enemy_col = col
+                                    break
+                            can_hit = (first_enemy_col == target_col)
+
+                if can_hit:
+                    total_damage += 1  # Count attacks, not damage
+
+        return total_damage
+
     def _render_highlights(self, screen: pygame.Surface, game: "game_module.Game", start_x: int, start_y: int, tile_w: int, tile_h: int):
         # Create a transparent surface for highlights
         highlight_surf = pygame.Surface((tile_w, tile_h), pygame.SRCALPHA)
 
-        # Determine active region to highlight
-        active_region = None # (start_col, end_col, color)
+        # Intensity-based highlighting for ATTACK/CONVERT modes
+        if self.mode in (EncounterMode.ATTACK, EncounterMode.CONVERT):
+            for_conversion = (self.mode == EncounterMode.CONVERT)
+            base_color = (255, 200, 50) if not for_conversion else (100, 150, 255)
 
-        if self.mode == EncounterMode.ATTACK:
-            active_region = (3, 6, (255, 255, 100, 50)) # Enemy side, Yellow tint
-        elif self.mode == EncounterMode.CONVERT:
-            active_region = (3, 6, (150, 150, 255, 50)) # Enemy side, Blue tint
+            # Calculate damage for all 9 enemy positions
+            damages = []
+            for idx in range(9):
+                row, col = idx // 3, idx % 3
+                dmg = self._calculate_position_damage(game, row, col, for_conversion)
+                damages.append(dmg)
+
+            max_dmg = max(damages) if damages else 1
+            if max_dmg == 0:
+                max_dmg = 1  # Avoid division by zero
+
+            # Render each cell with intensity based on damage
+            for idx in range(9):
+                dmg = damages[idx]
+                if dmg <= 0:
+                    continue  # No highlight for zero damage
+
+                # Alpha scales from 50 to 180 based on damage ratio
+                alpha = int(50 + 130 * (dmg / max_dmg))
+                color = (*base_color, alpha)
+
+                row, col = idx // 3, idx % 3
+                highlight_surf.fill(color)
+                screen.blit(highlight_surf, (start_x + (col + 3) * tile_w, start_y + row * tile_h))
+
+        # Uniform highlighting for other selection modes
         elif self.mode == EncounterMode.SELECTING_ALLY:
-            active_region = (0, 3, (100, 150, 255, 50)) # Player side
-        elif self.mode == EncounterMode.SELECTING_ENEMY:
-            active_region = (3, 6, (150, 100, 255, 50)) # Enemy side
-
-        if active_region:
-            col_start, col_end, color = active_region
-            highlight_surf.fill(color)
+            highlight_surf.fill((100, 150, 255, 50))
             for y in range(3):
-                for x in range(col_start, col_end):
+                for x in range(3):
                     screen.blit(highlight_surf, (start_x + x * tile_w, start_y + y * tile_h))
 
-        # Highlight Selected Entity (Cursor)
-        cursor_surf = pygame.Surface((tile_w, tile_h), pygame.SRCALPHA)
-        cursor_surf.fill((255, 255, 255, 50)) # White highlight
-        pygame.draw.rect(cursor_surf, (255, 255, 255), cursor_surf.get_rect(), 2) # Border
-
-        sel_x_offset = 0 if self.selected_side == "player" else 3
-        sel_x = (self.selected_index % 3) + sel_x_offset
-        sel_y = self.selected_index // 3
-
-        screen.blit(cursor_surf, (start_x + sel_x * tile_w, start_y + sel_y * tile_h))
+        elif self.mode == EncounterMode.SELECTING_ENEMY:
+            highlight_surf.fill((150, 100, 255, 50))
+            for y in range(3):
+                for x in range(3, 6):
+                    screen.blit(highlight_surf, (start_x + x * tile_w, start_y + y * tile_h))
 
     def _render_team(self, screen: pygame.Surface, game: "game_module.Game", team: list, start_x: int, start_y: int, x_offset: int, scale: int = 1):
         if not team:
@@ -1718,7 +1819,8 @@ class EncounterScreen(Screen):
                     for (dx, dy), glyph in zip(glyph_positions, glyphs):
                         sprite = game.sprite_manager.get_sprite(glyph, color)
                         if scale > 1:
-                            sprite = pygame.transform.scale(sprite, (tile_w, tile_h))
+                            scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
+                            sprite = scaled.convert_alpha()
                         px = start_x + (min_col + dx + x_offset) * tile_w
                         py = start_y + (min_row + dy) * tile_h
                         screen.blit(sprite, (px, py))
@@ -1726,5 +1828,6 @@ class EncounterScreen(Screen):
                 # Normal 1x1 rendering
                 sprite = game.sprite_manager.get_sprite(entity.symbol, entity.color)
                 if scale > 1:
-                    sprite = pygame.transform.scale(sprite, (tile_w, tile_h))
+                    scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
+                    sprite = scaled.convert_alpha()
                 screen.blit(sprite, (start_x + grid_x * tile_w, start_y + grid_y * tile_h))
