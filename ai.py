@@ -110,7 +110,7 @@ def get_enemy_attack_targets(
     if attack.attack_type == "melee":
         # Enemy attacks player side (attacker_is_player=False)
         target = get_melee_target(
-            encounter, attacker_row, False, target_col, target_row
+            encounter, attacker_col, attacker_row, False, target_col, target_row
         )
         if target:
             if has_piercing(attack):

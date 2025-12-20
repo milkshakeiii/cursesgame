@@ -494,7 +494,7 @@ def get_attack_targets(
 
     if attack.attack_type == "melee":
         target = get_melee_target(
-            encounter, attacker_row, attacker_is_player, target_col, target_row
+            encounter, attacker_col, attacker_row, attacker_is_player, target_col, target_row
         )
         if target:
             if has_piercing(attack):
@@ -572,7 +572,7 @@ def resolve_team_convert(
         # Get unit's attacks (conversion uses same targeting)
         if isinstance(unit, Player):
             attacks = get_hero_attacks(unit)
-            base_efficacy = 150  # Hero base efficacy
+            base_efficacy = 100  # Hero base efficacy
         else:
             attacks = unit.attacks or []
             base_efficacy = unit.conversion_efficacy

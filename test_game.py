@@ -751,6 +751,40 @@ class TestAttackAction:
         assert result.active_encounter is None
         assert encounter not in result.placeables
 
+    def test_melee_blocked_by_ally_in_front(self):
+        """Test that units behind an ally cannot make melee attacks."""
+        from combat import get_melee_target
+
+        player = Player(10, 10)
+        ally = create_test_creature(name="Ally")
+        enemy = create_test_creature(name="Enemy", health=100, max_health=100)
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[enemy])
+
+        # Set up player team: player in back (col 0), ally in front (col 2), same row
+        # Grid layout for row 1: indices 3, 4, 5 = cols 0, 1, 2
+        encounter.player_team = [None] * 9
+        encounter.player_team[3] = player  # col 0, row 1 (back)
+        encounter.player_team[5] = ally    # col 2, row 1 (front)
+
+        # Set up enemy in row 1
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[3] = enemy  # col 0, row 1 (enemy front)
+
+        # Player at col 0 should be blocked by ally at col 2
+        # Target is enemy at col 0, row 1
+        target = get_melee_target(
+            encounter, attacker_col=0, attacker_row=1, attacker_is_player=True,
+            target_col=0, target_row=1
+        )
+        assert target is None, "Player behind ally should not be able to melee"
+
+        # Ally at col 2 (front) should be able to melee
+        target = get_melee_target(
+            encounter, attacker_col=2, attacker_row=1, attacker_is_player=True,
+            target_col=0, target_row=1
+        )
+        assert target == enemy, "Ally at front should be able to melee"
+
 
 class TestConvertAction:
     """Tests for the convert action."""

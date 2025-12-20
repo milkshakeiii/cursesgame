@@ -44,6 +44,7 @@ def coords_to_grid_index(col: int, row: int) -> int:
 
 def get_melee_target(
     encounter: Encounter,
+    attacker_col: int,
     attacker_row: int,
     attacker_is_player: bool,
     target_col: int,
@@ -52,14 +53,33 @@ def get_melee_target(
     """Get the valid melee target for an attacker.
 
     Melee attacks hit the closest enemy horizontally in the same row.
+    Units cannot melee attack if an ally is in front of them (blocking).
     Returns the target if the specified target position matches the closest enemy.
     Returns None if the attacker cannot hit that target.
     """
+    ally_team = encounter.player_team if attacker_is_player else encounter.enemy_team
     enemy_team = encounter.enemy_team if attacker_is_player else encounter.player_team
 
     # Only consider targets in the same row as the attacker
     if target_row != attacker_row:
         return None
+
+    # Check if an ally is blocking (in front of the attacker)
+    # For player: front is column 2, so check columns > attacker_col
+    # For enemy: front is column 0, so check columns < attacker_col
+    for col in range(3):
+        if attacker_is_player:
+            # Player front is column 2; allies in columns > attacker block
+            if col > attacker_col:
+                idx = attacker_row * 3 + col
+                if ally_team[idx] is not None:
+                    return None  # Blocked by ally
+        else:
+            # Enemy front is column 0; allies in columns < attacker block
+            if col < attacker_col:
+                idx = attacker_row * 3 + col
+                if ally_team[idx] is not None:
+                    return None  # Blocked by ally
 
     # Find the closest enemy in the attacker's row
     closest_enemy = None
@@ -186,7 +206,7 @@ def can_attack_target(
 
     if attack.attack_type == "melee":
         target = get_melee_target(
-            encounter, attacker_row, attacker_is_player, target_col, target_row
+            encounter, attacker_col, attacker_row, attacker_is_player, target_col, target_row
         )
         return target is not None
     elif attack.attack_type == "ranged":
