@@ -1555,8 +1555,10 @@ class EncounterScreen(Screen):
 
         # --- BATTLE GRID (Right Top) ---
         # Grid is 6 tiles wide (3 player + 3 enemy), 3 tiles high
-        tile_w = game.sprite_manager.tile_width
-        tile_h = game.sprite_manager.tile_height
+        # Use 2x scale for larger battle grid
+        grid_scale = 2
+        tile_w = game.sprite_manager.tile_width * grid_scale
+        tile_h = game.sprite_manager.tile_height * grid_scale
         grid_width_pixels = 6 * tile_w
         grid_height_pixels = 3 * tile_h
 
@@ -1569,11 +1571,11 @@ class EncounterScreen(Screen):
         # Draw Grid Entities
         player_team = game.gamestate.active_encounter.player_team
         enemy_team = game.gamestate.active_encounter.enemy_team
-        
+
         # Draw Player Team (Offset 0)
-        self._render_team(screen, game, player_team, grid_start_x, grid_start_y, 0)
+        self._render_team(screen, game, player_team, grid_start_x, grid_start_y, 0, grid_scale)
         # Draw Enemy Team (Offset 3)
-        self._render_team(screen, game, enemy_team, grid_start_x, grid_start_y, 3)
+        self._render_team(screen, game, enemy_team, grid_start_x, grid_start_y, 3, grid_scale)
 
         # --- ACTIONS PANEL (Right Bottom) ---
         action_x = half_width + 20
@@ -1674,12 +1676,12 @@ class EncounterScreen(Screen):
 
         screen.blit(cursor_surf, (start_x + sel_x * tile_w, start_y + sel_y * tile_h))
 
-    def _render_team(self, screen: pygame.Surface, game: "game_module.Game", team: list, start_x: int, start_y: int, x_offset: int):
+    def _render_team(self, screen: pygame.Surface, game: "game_module.Game", team: list, start_x: int, start_y: int, x_offset: int, scale: int = 1):
         if not team:
             return
 
-        tile_w = game.sprite_manager.tile_width
-        tile_h = game.sprite_manager.tile_height
+        tile_w = game.sprite_manager.tile_width * scale
+        tile_h = game.sprite_manager.tile_height * scale
 
         # Track rendered 2x2 units to avoid double-rendering
         rendered_2x2 = set()
@@ -1715,10 +1717,14 @@ class EncounterScreen(Screen):
                     glyph_positions = [(0, 0), (1, 0), (0, 1), (1, 1)]
                     for (dx, dy), glyph in zip(glyph_positions, glyphs):
                         sprite = game.sprite_manager.get_sprite(glyph, color)
+                        if scale > 1:
+                            sprite = pygame.transform.scale(sprite, (tile_w, tile_h))
                         px = start_x + (min_col + dx + x_offset) * tile_w
                         py = start_y + (min_row + dy) * tile_h
                         screen.blit(sprite, (px, py))
             else:
                 # Normal 1x1 rendering
                 sprite = game.sprite_manager.get_sprite(entity.symbol, entity.color)
+                if scale > 1:
+                    sprite = pygame.transform.scale(sprite, (tile_w, tile_h))
                 screen.blit(sprite, (start_x + grid_x * tile_w, start_y + grid_y * tile_h))
