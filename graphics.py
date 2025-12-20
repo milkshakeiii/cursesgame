@@ -3,6 +3,8 @@ import pygame
 import pygame.freetype
 from typing import Dict, Optional, Tuple
 
+from game_data import LEFT_PANEL_WIDTH
+
 # Default BDF font path (relative to this file)
 DEFAULT_FONT_PATH = os.path.join(os.path.dirname(__file__), "ucs-fonts", "10x20.bdf")
 
@@ -55,8 +57,9 @@ class SpriteManager:
     ):
         """
         Draws a symbol at the specified grid coordinates.
+        Automatically offsets by LEFT_PANEL_WIDTH for map rendering.
         """
         sprite = self.get_sprite(symbol, color, bg_color)
-        screen_x = x * self.tile_width
+        screen_x = (x + LEFT_PANEL_WIDTH) * self.tile_width
         screen_y = y * self.tile_height
         screen.blit(sprite, (screen_x, screen_y))

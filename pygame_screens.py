@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional, Union
 from enum import Enum
 
-from game_data import GRID_HEIGHT, GRID_WIDTH, Player, Creature
+from game_data import GRID_HEIGHT, GRID_WIDTH, LEFT_PANEL_WIDTH, Player, Creature
 from gameplay import advance_step, select_best_attack, calculate_expected_result
 from combat import get_hero_attacks
 
@@ -65,6 +65,24 @@ class Screen(ABC):
         else:
             rect.topleft = (x, y)
         screen.blit(surface, rect)
+
+    def get_panel_width_pixels(self, game: "game_module.Game") -> int:
+        """Get the width of the left panel in pixels."""
+        return LEFT_PANEL_WIDTH * game.sprite_manager.tile_width
+
+    def draw_left_panel(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        """Draw the left panel background with a border."""
+        panel_width = self.get_panel_width_pixels(game)
+        # Dark panel background
+        pygame.draw.rect(screen, (20, 20, 30), (0, 0, panel_width, screen.get_height()))
+        # Border line
+        pygame.draw.line(screen, (60, 60, 80), (panel_width - 1, 0), (panel_width - 1, screen.get_height()))
+
+    def get_map_area_center_x(self, screen: pygame.Surface, game: "game_module.Game") -> int:
+        """Get the center x coordinate of the map area (excluding left panel)."""
+        panel_width = self.get_panel_width_pixels(game)
+        map_area_width = screen.get_width() - panel_width
+        return panel_width + map_area_width // 2
 
 
 class ExitConfirmationScreen(Screen):
@@ -130,24 +148,30 @@ class BiomeOrderScreen(Screen):
 
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
-        self.draw_text(screen, "UPCOMING JOURNEY", screen.get_width() // 2, 50, (255, 255, 0), self.font, centered=True)
-        
+
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+
+        center_x = self.get_map_area_center_x(screen, game)
+        self.draw_text(screen, "UPCOMING JOURNEY", center_x, 50, (255, 255, 0), self.font, centered=True)
+
         if game.gamestate.biome_order:
             for i, biome in enumerate(game.gamestate.biome_order):
                 y_pos = 150 + i * 50
                 levels = f"Levels {i*5+1}-{i*5+5}"
                 biome_name = biome.replace("_", " ").title()
-                
+
                 # Biome color mapping for flair
                 color = (200, 200, 200)
                 if biome == "forest": color = (34, 139, 34)
                 elif biome == "plains": color = (218, 165, 32)
                 elif biome == "snow": color = (200, 240, 255)
                 elif biome == "underground": color = (100, 100, 100)
-                
-                self.draw_text(screen, f"{levels}: {biome_name}", screen.get_width() // 2, y_pos, color, self.small_font, centered=True)
 
-        self.draw_text(screen, "Press ENTER to begin", screen.get_width() // 2, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+                self.draw_text(screen, f"{levels}: {biome_name}", center_x, y_pos, color, self.small_font, centered=True)
+
+        self.draw_text(screen, "Press ENTER to begin", center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+
 
 class TeamArrangementScreen(Screen):
     """Screen for rearranging the player's team."""
@@ -569,10 +593,13 @@ class TeamArrangementScreen(Screen):
 
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
-        
-        center_x = screen.get_width() // 2
+
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+
+        center_x = self.get_map_area_center_x(screen, game)
         center_y = screen.get_height() // 2
-        
+
         self.draw_text(screen, "TEAM ARRANGEMENT", center_x, 30, (255, 255, 0), self.header_font, centered=True)
         self.draw_text(screen, "Enter: Swap | Del: Dismiss | ESC: Done", center_x, screen.get_height() - 30, (150, 150, 150), self.font, centered=True)
 
@@ -728,10 +755,13 @@ class MainMenu(Screen):
 
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
-        
+
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+
         # Draw Title
         title = "MAIN MENU"
-        center_x = screen.get_width() // 2
+        center_x = self.get_map_area_center_x(screen, game)
         self.draw_text(screen, title, center_x, screen.get_height() // 4, (255, 255, 0), self.font, centered=True)
 
         # Draw Options
@@ -748,6 +778,7 @@ class MainMenu(Screen):
         self.draw_text(screen, instr1, center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
         self.draw_text(screen, instr2, center_x, screen.get_height() - 30, (150, 150, 150), self.small_font, centered=True)
 
+
 class WinScreen(Screen):
     """Screen shown when the player wins."""
     def __init__(self):
@@ -763,9 +794,15 @@ class WinScreen(Screen):
 
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
-        self.draw_text(screen, "VICTORY!", screen.get_width() // 2, screen.get_height() // 3, (0, 255, 0), self.font, centered=True)
-        self.draw_text(screen, "You have defeated the Dragon King!", screen.get_width() // 2, screen.get_height() // 2, (200, 255, 200), self.small_font, centered=True)
-        self.draw_text(screen, "Press ENTER to return to menu", screen.get_width() // 2, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+
+        center_x = self.get_map_area_center_x(screen, game)
+        self.draw_text(screen, "VICTORY!", center_x, screen.get_height() // 3, (0, 255, 0), self.font, centered=True)
+        self.draw_text(screen, "You have defeated the Dragon King!", center_x, screen.get_height() // 2, (200, 255, 200), self.small_font, centered=True)
+        self.draw_text(screen, "Press ENTER to return to menu", center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+
 
 class GameOverScreen(Screen):
     """Screen shown when the player loses."""
@@ -782,9 +819,14 @@ class GameOverScreen(Screen):
 
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
-        self.draw_text(screen, "GAME OVER", screen.get_width() // 2, screen.get_height() // 3, (255, 0, 0), self.font, centered=True)
-        self.draw_text(screen, "Your journey ends here.", screen.get_width() // 2, screen.get_height() // 2, (255, 200, 200), self.small_font, centered=True)
-        self.draw_text(screen, "Press ENTER to return to menu", screen.get_width() // 2, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+
+        center_x = self.get_map_area_center_x(screen, game)
+        self.draw_text(screen, "GAME OVER", center_x, screen.get_height() // 3, (255, 0, 0), self.font, centered=True)
+        self.draw_text(screen, "Your journey ends here.", center_x, screen.get_height() // 2, (255, 200, 200), self.small_font, centered=True)
+        self.draw_text(screen, "Press ENTER to return to menu", center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
 
 
 class BattleResultsScreen(Screen):
@@ -856,18 +898,24 @@ class BattleResultsScreen(Screen):
 
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((20, 20, 30))
-        width, height = screen.get_width(), screen.get_height()
+
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+
+        panel_width = self.get_panel_width_pixels(game)
+        center_x = self.get_map_area_center_x(screen, game)
+        height = screen.get_height()
 
         # Title
-        self.draw_text(screen, "BATTLE COMPLETE!", width // 2, 30, (100, 255, 100), self.font, centered=True)
+        self.draw_text(screen, "BATTLE COMPLETE!", center_x, 30, (100, 255, 100), self.font, centered=True)
 
         if not self.battle_results:
-            self.draw_text(screen, "No battle data available", width // 2, height // 2, (150, 150, 150), self.small_font, centered=True)
-            self.draw_text(screen, "Press ENTER to continue", width // 2, height - 40, (150, 150, 150), self.small_font, centered=True)
+            self.draw_text(screen, "No battle data available", center_x, height // 2, (150, 150, 150), self.small_font, centered=True)
+            self.draw_text(screen, "Press ENTER to continue", center_x, height - 40, (150, 150, 150), self.small_font, centered=True)
             return
 
         y = 70 - self.scroll_offset
-        left_margin = 40
+        left_margin = panel_width + 40
 
         # === EXPERIENCE GAINS ===
         if y > 0 and y < height:
@@ -1052,8 +1100,12 @@ class StatAllocationScreen(Screen):
 
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((20, 20, 40))
-        width, height = screen.get_width(), screen.get_height()
-        center_x = width // 2
+
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+
+        height = screen.get_height()
+        center_x = self.get_map_area_center_x(screen, game)
 
         player = self._get_player(game)
         if player is None:
@@ -1270,7 +1322,9 @@ class MapView(Screen):
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
 
-        # We assume screen size is setup to handle GRID_WIDTH * tile_size
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+
         # Draw all visible placeables except player first
         for placeable in game.gamestate.placeables or []:
             if placeable.visible and not isinstance(placeable, Player):
@@ -1294,15 +1348,18 @@ class MapView(Screen):
                     placeable.color,
                     placeable.bg_color,
                 )
-        
-        # Draw HUD
+
+        # Draw info in left panel
         self.draw_text(screen, f"Level: {game.gamestate.current_stage}/{game.gamestate.max_stages}", 10, 10, (255, 255, 255), self.font)
 
-        # Show walk mode indicator
+        # Show walk mode indicator in left panel
         if self.waiting_for_walk_dir:
-            self.draw_text(screen, "Walk: press direction", 10, 26, (255, 255, 0), self.font)
+            self.draw_text(screen, "Walk: press", 10, 30, (255, 255, 0), self.font)
+            self.draw_text(screen, "direction", 10, 46, (255, 255, 0), self.font)
         elif self.auto_walk_dir is not None:
-            self.draw_text(screen, "Walking... (press any key to stop)", 10, 26, (200, 200, 0), self.font)
+            self.draw_text(screen, "Walking...", 10, 30, (200, 200, 0), self.font)
+            self.draw_text(screen, "(any key", 10, 46, (200, 200, 0), self.font)
+            self.draw_text(screen, "to stop)", 10, 62, (200, 200, 0), self.font)
 
 class EncounterStartScreen(Screen):
     """Screen shown when the player first encounters something."""
@@ -1321,11 +1378,15 @@ class EncounterStartScreen(Screen):
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
 
-        center_x = screen.get_width() // 2
-        
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+
+        center_x = self.get_map_area_center_x(screen, game)
+
         self.draw_text(screen, "ENCOUNTER!", center_x, screen.get_height() // 3, (255, 255, 0), self.font, centered=True)
         self.draw_text(screen, "You encountered something!", center_x, screen.get_height() // 2, (200, 200, 200), self.small_font, centered=True)
         self.draw_text(screen, "Press ENTER or SPACE to continue", center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
+
 
 class EncounterScreen(Screen):
     """Main tactical battle screen for encounters."""
@@ -1482,48 +1543,54 @@ class EncounterScreen(Screen):
 
         screen.fill((0, 0, 0))
 
-        # Layout calculations
+        # Draw left panel
+        self.draw_left_panel(screen, game)
+        panel_width = self.get_panel_width_pixels(game)
+
+        # Layout calculations - map area only (excluding left panel)
         width, height = screen.get_width(), screen.get_height()
-        half_width = width // 2
+        map_area_width = width - panel_width
+        half_width = panel_width + map_area_width // 2
         half_height = height // 2
 
         # Draw Vertical Divider
         pygame.draw.line(screen, (100, 100, 100), (half_width, 0), (half_width, height))
-        # Draw Horizontal Divider (Both Sides)
-        pygame.draw.line(screen, (100, 100, 100), (0, half_height), (width, half_height))
+        # Draw Horizontal Divider (map area only)
+        pygame.draw.line(screen, (100, 100, 100), (panel_width, half_height), (width, half_height))
 
-        # --- INFO PANEL (Left) ---
-        self.draw_text(screen, "BATTLE INFO", 20, 20, (255, 255, 0), self.header_font)
+        # --- INFO PANEL (Left quadrant of map area) ---
+        info_x = panel_width + 10
+        self.draw_text(screen, "BATTLE INFO", info_x, 20, (255, 255, 0), self.header_font)
 
         selected_entity = self._get_selected_entity(game)
         if selected_entity:
             side_label = "Ally" if self.selected_side == "player" else "Enemy"
             name = getattr(selected_entity, "name", "Unknown")
 
-            self.draw_text(screen, f"{side_label}: {name}", 20, 50, (200, 200, 200), self.font)
+            self.draw_text(screen, f"{side_label}: {name}", info_x, 50, (200, 200, 200), self.font)
 
             hp_color = (0, 255, 0) if selected_entity.current_health > 30 else (255, 100, 100)
-            self.draw_text(screen, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", 20, 75, hp_color, self.font)
+            self.draw_text(screen, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", info_x, 75, hp_color, self.font)
 
             # Defense stats
             y_offset = 93
             defense = getattr(selected_entity, "defense", getattr(selected_entity, "base_defense", 0))
             dodge = getattr(selected_entity, "dodge", getattr(selected_entity, "base_dodge", 0))
             resistance = getattr(selected_entity, "resistance", getattr(selected_entity, "base_resistance", 0))
-            self.draw_text(screen, f"DEF:{defense} DOD:{dodge} RES:{resistance}", 20, y_offset, (150, 200, 150), self.small_font)
+            self.draw_text(screen, f"DEF:{defense} DOD:{dodge} RES:{resistance}", info_x, y_offset, (150, 200, 150), self.small_font)
             y_offset += 16
 
             # Conversion progress (for enemies)
             if hasattr(selected_entity, "conversion_progress"):
                 progress = getattr(selected_entity, "conversion_progress", 0)
                 max_conv = selected_entity.max_health
-                self.draw_text(screen, f"Convert: {progress}/{max_conv}", 20, y_offset, (150, 150, 255), self.small_font)
+                self.draw_text(screen, f"Convert: {progress}/{max_conv}", info_x, y_offset, (150, 150, 255), self.small_font)
                 y_offset += 16
 
             # Attacks
             attacks = getattr(selected_entity, "attacks", [])
             if attacks:
-                self.draw_text(screen, "Attacks:", 20, y_offset, (255, 200, 100), self.small_font)
+                self.draw_text(screen, "Attacks:", info_x, y_offset, (255, 200, 100), self.small_font)
                 y_offset += 14
                 for attack in attacks[:3]:  # Limit display
                     atk_text = f"  {attack.attack_type}: {attack.damage}"
@@ -1531,28 +1598,28 @@ class EncounterScreen(Screen):
                         atk_text += f" ({attack.range_min}-{attack.range_max})"
                     if attack.abilities:
                         atk_text += f" [{', '.join(attack.abilities[:2])}]"
-                    self.draw_text(screen, atk_text, 20, y_offset, (200, 180, 100), self.small_font)
+                    self.draw_text(screen, atk_text, info_x, y_offset, (200, 180, 100), self.small_font)
                     y_offset += 14
 
             # Abilities
             abilities = getattr(selected_entity, "abilities", [])
             if abilities:
-                self.draw_text(screen, "Abilities:", 20, y_offset, (100, 200, 255), self.small_font)
+                self.draw_text(screen, "Abilities:", info_x, y_offset, (100, 200, 255), self.small_font)
                 y_offset += 14
                 for ability in abilities[:3]:  # Limit display
-                    self.draw_text(screen, f"  {ability}", 20, y_offset, (150, 200, 255), self.small_font)
+                    self.draw_text(screen, f"  {ability}", info_x, y_offset, (150, 200, 255), self.small_font)
                     y_offset += 14
 
             # Debuffs
             debuffs = getattr(selected_entity, "debuffs", {})
             if debuffs:
-                self.draw_text(screen, "Debuffs:", 20, y_offset, (255, 100, 100), self.small_font)
+                self.draw_text(screen, "Debuffs:", info_x, y_offset, (255, 100, 100), self.small_font)
                 y_offset += 14
                 for debuff, stacks in debuffs.items():
-                    self.draw_text(screen, f"  {debuff} x{stacks}", 20, y_offset, (255, 150, 150), self.small_font)
+                    self.draw_text(screen, f"  {debuff} x{stacks}", info_x, y_offset, (255, 150, 150), self.small_font)
                     y_offset += 14
         else:
-            self.draw_text(screen, "No selection / Empty slot", 20, 85, (150, 150, 150), self.font)
+            self.draw_text(screen, "No selection / Empty slot", info_x, 85, (150, 150, 150), self.font)
 
         # --- BATTLE GRID (Right Top) ---
         # Grid is 6 tiles wide (3 player + 3 enemy), 3 tiles high
@@ -1563,7 +1630,9 @@ class EncounterScreen(Screen):
         grid_width_pixels = 6 * tile_w
         grid_height_pixels = 3 * tile_h
 
-        grid_start_x = half_width + (half_width - grid_width_pixels) // 2
+        # Right quadrant width (from half_width to screen edge)
+        right_quadrant_width = width - half_width
+        grid_start_x = half_width + (right_quadrant_width - grid_width_pixels) // 2
         grid_start_y = (half_height - grid_height_pixels) // 2
 
         # Draw Grid Highlights
@@ -1609,7 +1678,7 @@ class EncounterScreen(Screen):
             self.draw_text(screen, text, action_x, action_y + 40 + i * 25, color, self.font)
 
         # --- COMBAT LOG (Left Bottom) ---
-        log_x = 10
+        log_x = panel_width + 10
         log_y = half_height + 10
         self.draw_text(screen, "COMBAT LOG", log_x, log_y, (255, 255, 0), self.header_font)
 
@@ -1637,8 +1706,9 @@ class EncounterScreen(Screen):
             else:
                 color = (200, 200, 200)  # Default
 
-            # Truncate long entries
-            max_chars = (half_width - 20) // 7  # Approximate char width
+            # Truncate long entries - combat log is in left quadrant (panel_width to half_width)
+            left_quadrant_width = half_width - panel_width
+            max_chars = (left_quadrant_width - 20) // 7  # Approximate char width
             display_entry = entry[:max_chars] if len(entry) > max_chars else entry
             self.draw_text(screen, display_entry, log_x, log_y, color, self.small_font)
             log_y += log_line_height

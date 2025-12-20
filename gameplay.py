@@ -4,7 +4,7 @@ from typing import Optional, Union
 import random
 
 from game_data import GRID_HEIGHT, GRID_WIDTH, Attack, Creature, Encounter, Exit, GameState, Player, Terrain
-from terrain_gen import generate_biome_terrain
+from terrain_gen import generate_biome_terrain, generate_maze, maze_to_grid_walls, get_corner_cell_center
 from creatures import spawn_creature, get_creature_for_terrain, BIOME_TERRAIN_CREATURES
 from combat import (
     calculate_damage,
@@ -49,6 +49,7 @@ BIOME_DATA = {
             "trees": {"symbol": "█", "color": (10, 60, 10), "bg_color": (20, 40, 20)},
             "bushes": {"symbol": "▒", "color": (50, 120, 60), "bg_color": (25, 60, 30)},
             "hill": {"symbol": "▓", "color": (110, 90, 60), "bg_color": (60, 40, 20)},
+            "wall": {"symbol": "█", "color": (60, 80, 50), "bg_color": (30, 40, 25)},
         },
         "layers": [
             {"tile_id": "bushes", "threshold": 0.55, "seed_offset": 1000, "priority": 1},
@@ -63,6 +64,7 @@ BIOME_DATA = {
         "tiles": {
             "short_grass": {"symbol": "░", "color": (80, 140, 60), "bg_color": (40, 80, 30)},
             "tall_grass": {"symbol": "▒", "color": (100, 170, 70), "bg_color": (50, 100, 40)},
+            "wall": {"symbol": "█", "color": (100, 90, 70), "bg_color": (50, 45, 35)},
         },
         "layers": [
             {"tile_id": "tall_grass", "threshold": 0.55, "seed_offset": 1000, "priority": 1},
@@ -76,6 +78,7 @@ BIOME_DATA = {
             "snow": {"symbol": "░", "color": (230, 240, 245), "bg_color": (180, 205, 215)},
             "rocky": {"symbol": "▓", "color": (140, 150, 160), "bg_color": (90, 100, 110)},
             "trees": {"symbol": "█", "color": (40, 90, 50), "bg_color": (25, 55, 35)},
+            "wall": {"symbol": "█", "color": (160, 170, 180), "bg_color": (100, 110, 120)},
         },
         "layers": [
             {"tile_id": "rocky", "threshold": 0.6, "seed_offset": 1000, "priority": 1},
@@ -91,6 +94,7 @@ BIOME_DATA = {
             "moss": {"symbol": "▒", "color": (70, 110, 70), "bg_color": (35, 65, 35)},
             "mushrooms": {"symbol": "▓", "color": (170, 100, 60), "bg_color": (70, 40, 30)},
             "stalactite": {"symbol": "█", "color": (120, 120, 130), "bg_color": (60, 60, 70)},
+            "wall": {"symbol": "█", "color": (90, 80, 70), "bg_color": (50, 40, 35)},
         },
         "layers": [
             {"tile_id": "moss", "threshold": 0.55, "seed_offset": 1000, "priority": 1},
@@ -147,6 +151,17 @@ def advance_step(
 
         # Check bounds and update position if valid
         if 0 <= new_x < GRID_WIDTH and 0 <= new_y < GRID_HEIGHT:
+            # Check for wall collision
+            is_wall = False
+            for placeable in gamestate.placeables or []:
+                if isinstance(placeable, Terrain) and placeable.x == new_x and placeable.y == new_y:
+                    if placeable.tile_type == "wall":
+                        is_wall = True
+                        break
+
+            if is_wall:
+                return gamestate  # Can't move into wall
+
             player.x = new_x
             player.y = new_y
 
@@ -1078,7 +1093,7 @@ def generate_map(
     run_seed: Optional[int] = None,
 ) -> GameState:
     """Generate a map with terrain, encounters, and a player."""
-    
+
     # Default biome order if not provided
     if biome_order is None:
         biome_order = ["forest", "plains", "snow", "underground"]
@@ -1095,18 +1110,48 @@ def generate_map(
 
     placeables = []
 
+    # Seed for this level
+    seed = run_seed + stage * 10000 + biome_index * 1000
+    maze_rng = random.Random(seed)
+
+    # Determine maze size: higher levels favor 4x4
+    # Probability of 4x4 increases with stage: 0% at stage 1, up to 76% at stage 20
+    prob_4x4 = min(0.8, (stage - 1) * 0.04)
+    maze_size = 4 if maze_rng.random() < prob_4x4 else 3
+
+    # Calculate cell dimensions to fit grid interior (excluding 1-tile border)
+    # Interior is (GRID_WIDTH - 2) x (GRID_HEIGHT - 2) = 48 x 23
+    # For n cells with n+1 walls (1 tile each): n * cell_size + (n + 1) <= interior
+    # cell_size = (interior - n - 1) // n
+    interior_width = GRID_WIDTH - 2  # 48
+    interior_height = GRID_HEIGHT - 2  # 23
+    cell_width = (interior_width - maze_size - 1) // maze_size
+    cell_height = (interior_height - maze_size - 1) // maze_size
+
+    # Generate maze and get wall positions
+    maze = generate_maze(seed, maze_size)
+    wall_positions = maze_to_grid_walls(maze, maze_size, cell_width, cell_height, GRID_WIDTH, GRID_HEIGHT)
+
+    # Choose random corners for player and exit
+    corners = ["TL", "TR", "BL", "BR"]
+    maze_rng.shuffle(corners)
+    player_corner = corners[0]
+    exit_corner = corners[1]
+
+    player_x, player_y = get_corner_cell_center(maze_size, cell_width, cell_height, player_corner)
+    exit_x, exit_y = get_corner_cell_center(maze_size, cell_width, cell_height, exit_corner)
+
     # Player Setup
     if current_player:
         player = current_player
-        player.x = GRID_WIDTH // 2
-        player.y = GRID_HEIGHT // 2
+        player.x = player_x
+        player.y = player_y
     else:
-        player = Player(x=GRID_WIDTH // 2, y=GRID_HEIGHT // 2)
-    
+        player = Player(x=player_x, y=player_y)
+
     placeables.append(player)
 
-    # Terrain Generation
-    seed = run_seed + stage * 10000 + biome_index * 1000
+    # Terrain Generation - use noise for cell interiors
     terrain_map = generate_biome_terrain(
         seed=seed,
         width=GRID_WIDTH,
@@ -1117,30 +1162,59 @@ def generate_map(
     )
 
     base_tile = biome_info["base_tile"]
-    for y in range(1, GRID_HEIGHT - 1):
-        for x in range(1, GRID_WIDTH - 1):
-            tile_id = terrain_map[(x, y)]
-            tile_def = terrain_tiles.get(tile_id, terrain_tiles[base_tile])
-            placeables.append(
-                Terrain(
-                    x=x,
-                    y=y,
-                    symbol=tile_def["symbol"],
-                    color=tile_def["color"],
-                    bg_color=tile_def["bg_color"],
+    wall_tile = terrain_tiles["wall"]
+
+    # Place all terrain including border walls
+    for y in range(GRID_HEIGHT):
+        for x in range(GRID_WIDTH):
+            # Border walls (edge of map)
+            if x == 0 or x == GRID_WIDTH - 1 or y == 0 or y == GRID_HEIGHT - 1:
+                placeables.append(
+                    Terrain(
+                        x=x,
+                        y=y,
+                        symbol=wall_tile["symbol"],
+                        color=wall_tile["color"],
+                        bg_color=wall_tile["bg_color"],
+                        tile_type="wall",
+                    )
                 )
-            )
+            # Maze walls (between cells)
+            elif (x, y) in wall_positions:
+                placeables.append(
+                    Terrain(
+                        x=x,
+                        y=y,
+                        symbol=wall_tile["symbol"],
+                        color=wall_tile["color"],
+                        bg_color=wall_tile["bg_color"],
+                        tile_type="wall",
+                    )
+                )
+            # Regular terrain (cell interiors)
+            else:
+                tile_id = terrain_map.get((x, y), base_tile)
+                tile_def = terrain_tiles.get(tile_id, terrain_tiles[base_tile])
+                placeables.append(
+                    Terrain(
+                        x=x,
+                        y=y,
+                        symbol=tile_def["symbol"],
+                        color=tile_def["color"],
+                        bg_color=tile_def["bg_color"],
+                        tile_type=tile_id,
+                    )
+                )
 
     # Level Specific Generation
     if stage == 20:
-        # Boss Level - spawn Dragon King from registry
+        # Boss Level - spawn Dragon King at exit corner
         boss = spawn_creature("Dragon King")
-        # Place boss
-        placeables.append(Encounter(x=GRID_WIDTH - 10, y=GRID_HEIGHT // 2, symbol="D", color=(255, 80, 80), creatures=[boss]))
+        placeables.append(Encounter(x=exit_x, y=exit_y, symbol="D", color=(255, 80, 80), creatures=[boss]))
     else:
         # Standard Level
-        # Place Exit
-        placeables.append(Exit(x=GRID_WIDTH - 2, y=GRID_HEIGHT // 2, symbol=">", color=(255, 255, 255), visible=True))
+        # Place Exit at chosen corner
+        placeables.append(Exit(x=exit_x, y=exit_y, symbol=">", color=(255, 255, 255), visible=True))
 
         # Encounters - each cell has independent chance based on terrain
         encounter_chance = 0.03  # 3% chance per cell
@@ -1150,19 +1224,23 @@ def generate_map(
 
         # Enemy count scaling based on stage (deeper = more enemies)
         # Stage 1-5: 1-2 enemies, Stage 6-10: 2-3, Stage 11-15: 3-4, Stage 16-19: 4-5
-        biome_index = (stage - 1) // 5  # 0-3
-        min_enemies = 1 + biome_index
-        max_enemies = 2 + biome_index
+        biome_idx = (stage - 1) // 5  # 0-3
+        min_enemies = 1 + biome_idx
+        max_enemies = 2 + biome_idx
 
         # Enemy tier scaling - chance of higher starting tier in deeper biomes
-        tier_chance = biome_index * 0.15  # 0%, 15%, 30%, 45% chance per enemy
+        tier_chance = biome_idx * 0.15  # 0%, 15%, 30%, 45% chance per enemy
 
-        for y in range(2, GRID_HEIGHT - 2):
-            for x in range(2, GRID_WIDTH - 2):
+        for y in range(1, GRID_HEIGHT - 1):
+            for x in range(1, GRID_WIDTH - 1):
+                # Skip wall positions
+                if (x, y) in wall_positions:
+                    continue
+
                 # Skip cells near player spawn or exit
                 if abs(x - player.x) < 3 and abs(y - player.y) < 3:
                     continue
-                if abs(x - (GRID_WIDTH - 2)) < 2 and abs(y - GRID_HEIGHT // 2) < 2:
+                if abs(x - exit_x) < 2 and abs(y - exit_y) < 2:
                     continue
 
                 # Roll for encounter
@@ -1187,7 +1265,7 @@ def generate_map(
 
                     # Roll for starting at higher tier
                     if encounter_rng.random() < tier_chance:
-                        bonus_tier = encounter_rng.randint(1, biome_index)
+                        bonus_tier = encounter_rng.randint(1, biome_idx)
                         creature.set_tier(bonus_tier)
 
                     encounter_creatures.append(creature)

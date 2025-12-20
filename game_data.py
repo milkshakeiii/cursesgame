@@ -6,6 +6,7 @@ from typing import Optional
 # Grid dimensions
 GRID_WIDTH = 50
 GRID_HEIGHT = 25
+LEFT_PANEL_WIDTH = 16  # Width of left UI panel in tiles
 
 
 @dataclass
@@ -25,6 +26,7 @@ class Terrain(Placeable):
     """Represents terrain tiles on the map."""
 
     visible: bool = True
+    tile_type: Optional[str] = None  # For collision detection (e.g., "wall")
 
 @dataclass
 class Exit(Placeable):

@@ -31,6 +31,7 @@ from game_data import (
     Terrain,
 )
 from gameplay import advance_step, generate_map
+from terrain_gen import MazeCell, generate_maze
 from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, EncounterMode
 
 
@@ -155,8 +156,9 @@ class TestGame:
         assert game.gamestate is not None
         player = get_player(game.gamestate)
         assert player is not None
-        assert player.x == GRID_WIDTH // 2
-        assert player.y == GRID_HEIGHT // 2
+        # Player is placed in a maze corner cell, verify it's within bounds
+        assert 1 <= player.x < GRID_WIDTH - 1
+        assert 1 <= player.y < GRID_HEIGHT - 1
         assert game.running is True
 
     def test_direction_map_has_all_numpad_keys(self):
@@ -481,8 +483,9 @@ class TestGenerateMap:
         gamestate = generate_map()
         player = get_player(gamestate)
         assert player is not None
-        assert player.x == GRID_WIDTH // 2
-        assert player.y == GRID_HEIGHT // 2
+        # Player is placed in a maze corner cell, verify it's within bounds
+        assert 1 <= player.x < GRID_WIDTH - 1
+        assert 1 <= player.y < GRID_HEIGHT - 1
 
     def test_generate_map_includes_terrain(self):
         """Test that generate_map includes terrain."""
@@ -1263,3 +1266,118 @@ class TestEncounterSelection:
         screen.handle_event(event, game)
 
         assert screen.mode == EncounterMode.NORMAL
+
+
+class TestMazeGeneration:
+    """Tests for maze generation."""
+
+    def test_maze_returns_correct_size(self):
+        """Test that generate_maze returns n*n cells."""
+        for n in [2, 3, 4, 5]:
+            maze = generate_maze(seed=42, n=n)
+            assert len(maze) == n * n
+
+    def test_maze_cells_have_correct_coordinates(self):
+        """Test that maze contains all expected coordinates."""
+        n = 3
+        maze = generate_maze(seed=42, n=n)
+        for x in range(n):
+            for y in range(n):
+                assert (x, y) in maze
+
+    def test_maze_is_deterministic(self):
+        """Test that same seed produces same maze."""
+        maze1 = generate_maze(seed=123, n=4)
+        maze2 = generate_maze(seed=123, n=4)
+
+        for pos in maze1:
+            assert maze1[pos].north == maze2[pos].north
+            assert maze1[pos].east == maze2[pos].east
+            assert maze1[pos].south == maze2[pos].south
+            assert maze1[pos].west == maze2[pos].west
+
+    def test_different_seeds_produce_different_mazes(self):
+        """Test that different seeds produce different mazes."""
+        maze1 = generate_maze(seed=1, n=4)
+        maze2 = generate_maze(seed=2, n=4)
+
+        # At least one cell should differ
+        differs = False
+        for pos in maze1:
+            if (maze1[pos].north != maze2[pos].north or
+                maze1[pos].east != maze2[pos].east or
+                maze1[pos].south != maze2[pos].south or
+                maze1[pos].west != maze2[pos].west):
+                differs = True
+                break
+        assert differs
+
+    def test_maze_is_fully_connected(self):
+        """Test that all cells are reachable from (0, 0)."""
+        n = 4
+        maze = generate_maze(seed=42, n=n)
+
+        # BFS from (0, 0)
+        visited = set()
+        queue = [(0, 0)]
+        visited.add((0, 0))
+
+        while queue:
+            x, y = queue.pop(0)
+            cell = maze[(x, y)]
+
+            # Check each direction
+            if not cell.north and y > 0 and (x, y - 1) not in visited:
+                visited.add((x, y - 1))
+                queue.append((x, y - 1))
+            if not cell.south and y < n - 1 and (x, y + 1) not in visited:
+                visited.add((x, y + 1))
+                queue.append((x, y + 1))
+            if not cell.west and x > 0 and (x - 1, y) not in visited:
+                visited.add((x - 1, y))
+                queue.append((x - 1, y))
+            if not cell.east and x < n - 1 and (x + 1, y) not in visited:
+                visited.add((x + 1, y))
+                queue.append((x + 1, y))
+
+        assert len(visited) == n * n
+
+    def test_maze_walls_are_consistent(self):
+        """Test that walls match between adjacent cells."""
+        n = 4
+        maze = generate_maze(seed=42, n=n)
+
+        for x in range(n):
+            for y in range(n):
+                cell = maze[(x, y)]
+
+                # Check east-west consistency
+                if x < n - 1:
+                    neighbor = maze[(x + 1, y)]
+                    assert cell.east == neighbor.west
+
+                # Check north-south consistency
+                if y < n - 1:
+                    neighbor = maze[(x, y + 1)]
+                    assert cell.south == neighbor.north
+
+    def test_maze_edge_cells_have_outer_walls(self):
+        """Test that cells on the edge have walls on the boundary."""
+        n = 4
+        maze = generate_maze(seed=42, n=n)
+
+        # Top row should have north walls
+        for x in range(n):
+            assert maze[(x, 0)].north is True
+
+        # Bottom row should have south walls
+        for x in range(n):
+            assert maze[(x, n - 1)].south is True
+
+        # Left column should have west walls
+        for y in range(n):
+            assert maze[(0, y)].west is True
+
+        # Right column should have east walls
+        for y in range(n):
+            assert maze[(n - 1, y)].east is True

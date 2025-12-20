@@ -1,8 +1,168 @@
 """Biome-aware terrain generation using layered simplex noise."""
 
-from typing import Dict, List, Tuple
+import random
+from dataclasses import dataclass, field
+from typing import Dict, List, Set, Tuple
 
 import tcod.noise
+
+
+@dataclass
+class MazeCell:
+    """Represents a cell in a maze with walls on each edge."""
+
+    north: bool = True
+    east: bool = True
+    south: bool = True
+    west: bool = True
+
+
+def generate_maze(seed: int, n: int) -> Dict[Tuple[int, int], MazeCell]:
+    """
+    Generate an nxn maze using recursive backtracking.
+
+    Args:
+        seed: Random seed for reproducible generation.
+        n: Size of the maze (n x n cells).
+
+    Returns:
+        Dictionary mapping (x, y) coordinates to MazeCell objects.
+        Each cell tracks which of its 4 edges have walls.
+    """
+    rng = random.Random(seed)
+
+    # Initialize all cells with all walls
+    maze: Dict[Tuple[int, int], MazeCell] = {
+        (x, y): MazeCell() for x in range(n) for y in range(n)
+    }
+
+    opposite = {"north": "south", "south": "north", "east": "west", "west": "east"}
+    directions = {
+        "north": (0, -1),
+        "east": (1, 0),
+        "south": (0, 1),
+        "west": (-1, 0),
+    }
+
+    def carve(x: int, y: int, visited: Set[Tuple[int, int]]) -> None:
+        visited.add((x, y))
+
+        dirs = list(directions.keys())
+        rng.shuffle(dirs)
+
+        for direction in dirs:
+            dx, dy = directions[direction]
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < n and 0 <= ny < n and (nx, ny) not in visited:
+                # Remove wall between current and neighbor
+                setattr(maze[(x, y)], direction, False)
+                setattr(maze[(nx, ny)], opposite[direction], False)
+                carve(nx, ny, visited)
+
+    carve(0, 0, set())
+    return maze
+
+
+def maze_to_grid_walls(
+    maze: Dict[Tuple[int, int], MazeCell],
+    maze_size: int,
+    cell_width: int,
+    cell_height: int,
+    grid_width: int,
+    grid_height: int,
+) -> Set[Tuple[int, int]]:
+    """
+    Convert maze cell walls to grid wall coordinates.
+
+    Args:
+        maze: Dictionary of maze cells from generate_maze().
+        maze_size: The n x n size of the maze.
+        cell_width: Width of each maze cell in grid tiles (interior only).
+        cell_height: Height of each maze cell in grid tiles (interior only).
+        grid_width: Total grid width.
+        grid_height: Total grid height.
+
+    Returns:
+        Set of (x, y) coordinates where walls should be placed.
+    """
+    walls: Set[Tuple[int, int]] = set()
+
+    for (mx, my), cell in maze.items():
+        # Calculate grid position of this cell's top-left interior corner
+        # +1 to account for border, then mx * (cell_width + 1) for wall between cells
+        base_x = 1 + mx * (cell_width + 1)
+        base_y = 1 + my * (cell_height + 1)
+
+        # North wall (horizontal line above cell)
+        if cell.north:
+            wall_y = base_y - 1
+            for dx in range(cell_width):
+                walls.add((base_x + dx, wall_y))
+
+        # West wall (vertical line left of cell)
+        if cell.west:
+            wall_x = base_x - 1
+            for dy in range(cell_height):
+                walls.add((wall_x, base_y + dy))
+
+        # South wall - only for bottom row of maze
+        if my == maze_size - 1 and cell.south:
+            wall_y = base_y + cell_height
+            for dx in range(cell_width):
+                walls.add((base_x + dx, wall_y))
+
+        # East wall - only for rightmost column of maze
+        if mx == maze_size - 1 and cell.east:
+            wall_x = base_x + cell_width
+            for dy in range(cell_height):
+                walls.add((wall_x, base_y + dy))
+
+        # Corner pieces where walls meet
+        if cell.north and cell.west:
+            walls.add((base_x - 1, base_y - 1))
+        if cell.north and mx == maze_size - 1 and cell.east:
+            walls.add((base_x + cell_width, base_y - 1))
+        if my == maze_size - 1 and cell.south and cell.west:
+            walls.add((base_x - 1, base_y + cell_height))
+        if my == maze_size - 1 and mx == maze_size - 1 and cell.south and cell.east:
+            walls.add((base_x + cell_width, base_y + cell_height))
+
+    # Filter to only include walls within grid bounds (excluding border)
+    return {(x, y) for x, y in walls if 1 <= x < grid_width - 1 and 1 <= y < grid_height - 1}
+
+
+def get_corner_cell_center(
+    maze_size: int,
+    cell_width: int,
+    cell_height: int,
+    corner: str,
+) -> Tuple[int, int]:
+    """
+    Get the center grid position of a corner cell in the maze.
+
+    Args:
+        maze_size: The n x n size of the maze.
+        cell_width: Width of each maze cell in grid tiles.
+        cell_height: Height of each maze cell in grid tiles.
+        corner: One of "TL" (top-left), "TR" (top-right), "BL" (bottom-left), "BR" (bottom-right).
+
+    Returns:
+        (x, y) grid coordinates for the center of the specified corner cell.
+    """
+    corners = {
+        "TL": (0, 0),
+        "TR": (maze_size - 1, 0),
+        "BL": (0, maze_size - 1),
+        "BR": (maze_size - 1, maze_size - 1),
+    }
+    mx, my = corners[corner]
+
+    # Calculate cell's top-left grid position (+1 for border)
+    base_x = 1 + mx * (cell_width + 1)
+    base_y = 1 + my * (cell_height + 1)
+
+    # Return center of cell
+    return base_x + cell_width // 2, base_y + cell_height // 2
 
 
 def _build_noise(seed: int) -> tcod.noise.Noise:

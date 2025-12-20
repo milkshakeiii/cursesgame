@@ -2,7 +2,7 @@
 import pygame
 import pygame.freetype
 import random
-from game_data import GRID_HEIGHT, GRID_WIDTH
+from game_data import GRID_HEIGHT, GRID_WIDTH, LEFT_PANEL_WIDTH
 from gameplay import generate_map
 from graphics import SpriteManager
 from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen, BiomeOrderScreen, TeamArrangementScreen, BattleResultsScreen, StatAllocationScreen, ExitConfirmationScreen
@@ -12,7 +12,7 @@ SCALE = 1
 # Initialize to calculate screen dimensions
 pygame.freetype.init()
 _temp_sm = SpriteManager(scale=SCALE)
-SCREEN_WIDTH = GRID_WIDTH * _temp_sm.tile_width
+SCREEN_WIDTH = (GRID_WIDTH + LEFT_PANEL_WIDTH) * _temp_sm.tile_width
 SCREEN_HEIGHT = GRID_HEIGHT * _temp_sm.tile_height
 del _temp_sm
 
