@@ -5,7 +5,7 @@ import random
 from game_data import GRID_HEIGHT, GRID_WIDTH
 from gameplay import generate_map
 from graphics import SpriteManager
-from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen, BiomeOrderScreen, TeamArrangementScreen, BattleResultsScreen, StatAllocationScreen
+from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, Screen, WinScreen, GameOverScreen, BiomeOrderScreen, TeamArrangementScreen, BattleResultsScreen, StatAllocationScreen, ExitConfirmationScreen
 
 SCALE = 1
 
@@ -36,6 +36,7 @@ class Game:
         self.team_arrangement_screen = TeamArrangementScreen()
         self.battle_results_screen = BattleResultsScreen()
         self.stat_allocation_screen = StatAllocationScreen()
+        self.exit_confirmation_screen = ExitConfirmationScreen()
         self.current_back_screen = self.main_menu
         self.current_front_screen = None
 
@@ -57,8 +58,18 @@ class Game:
     def handle_event(self, event: pygame.event.Event) -> None:
         self.current_screen().handle_event(event, self)
 
+    def update(self) -> None:
+        """Called each frame for time-based updates like auto-walk."""
+        screen = self.current_screen()
+        if hasattr(screen, 'update'):
+            screen.update(self)
+
     def render(self) -> None:
-        self.current_screen().render(self.render_surface, self)
+        # Always render back screen first
+        self.current_back_screen.render(self.render_surface, self)
+        # If there's a front screen (popup), render it on top
+        if self.current_front_screen:
+            self.current_front_screen.render(self.render_surface, self)
         screen_size = self.screen.get_size()
         if screen_size == (SCREEN_WIDTH, SCREEN_HEIGHT):
             self.screen.blit(self.render_surface, (0, 0))
@@ -90,7 +101,8 @@ def main():
     while game.running:
         for event in pygame.event.get():
             game.handle_event(event)
-        
+
+        game.update()
         game.render()
         pygame.display.flip()
         clock.tick(60)

@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from game_data import Attack, Creature, Encounter, Player
+from game_data import Creature, Encounter, Player
 
 
 def calculate_tier_requirement(base_requirement: int, tier: int, hero_int: int) -> int:
@@ -35,9 +35,6 @@ def check_tier_upgrade(creature: Creature, hero_int: int) -> bool:
 
     Returns True if upgrade happened.
     """
-    if creature.tier >= 3:
-        return False  # Max tier
-
     # No progression if base_requirement is 0 (like Yeti, Skeleton)
     if creature.base_requirement == 0:
         return False
@@ -46,7 +43,7 @@ def check_tier_upgrade(creature: Creature, hero_int: int) -> bool:
     required_battles = calculate_total_battles_for_tier(creature, next_tier, hero_int)
 
     if creature.battles_completed >= required_battles:
-        apply_tier_bonuses(creature, next_tier)
+        creature.apply_tier_bonus(next_tier)
         creature.tier = next_tier
         return True
 
@@ -100,103 +97,6 @@ def get_tier_bonus_description(creature: Creature, tier: int) -> list[str]:
             descriptions.append("Grows to 2x2!")
 
     return descriptions
-
-
-def apply_tier_bonuses(creature: Creature, tier: int) -> None:
-    """Apply stat and ability bonuses for reaching a tier.
-
-    Modifies the creature in-place.
-    """
-    if not creature.tier_bonuses:
-        return
-
-    for bonus in creature.tier_bonuses:
-        if bonus.get("tier") != tier:
-            continue
-
-        # Stat bonuses
-        if "max_health" in bonus:
-            creature.max_health += bonus["max_health"]
-            creature.current_health += bonus["max_health"]
-        if "defense" in bonus:
-            creature.defense += bonus["defense"]
-        if "dodge" in bonus:
-            creature.dodge += bonus["dodge"]
-        if "resistance" in bonus:
-            creature.resistance += bonus["resistance"]
-        if "conversion_efficacy" in bonus:
-            creature.conversion_efficacy += bonus["conversion_efficacy"]
-
-        # Attack damage bonuses
-        if "melee_damage" in bonus:
-            for attack in creature.attacks or []:
-                if attack.attack_type == "melee":
-                    attack.damage += bonus["melee_damage"]
-        if "ranged_damage" in bonus:
-            for attack in creature.attacks or []:
-                if attack.attack_type == "ranged":
-                    attack.damage += bonus["ranged_damage"]
-        if "magic_damage" in bonus:
-            for attack in creature.attacks or []:
-                if attack.attack_type == "magic":
-                    attack.damage += bonus["magic_damage"]
-
-        # New attack
-        if "new_attack" in bonus:
-            new_atk = bonus["new_attack"]
-            range_str = new_atk.get("range", "")
-            range_min, range_max = None, None
-            if range_str and "-" in range_str:
-                parts = range_str.split("-")
-                range_min = int(parts[0])
-                range_max = int(parts[1])
-
-            attack = Attack(
-                attack_type=new_atk["type"],
-                damage=new_atk["damage"],
-                range_min=range_min,
-                range_max=range_max,
-                abilities=new_atk.get("abilities", []),
-            )
-            if creature.attacks is None:
-                creature.attacks = []
-            creature.attacks.append(attack)
-
-        # Attack ability additions
-        if "attack_abilities" in bonus:
-            for attack_type, abilities in bonus["attack_abilities"].items():
-                for attack in creature.attacks or []:
-                    if attack.attack_type == attack_type:
-                        if attack.abilities is None:
-                            attack.abilities = []
-                        attack.abilities.extend(abilities)
-
-        # Ability unlocks
-        if "abilities" in bonus:
-            if creature.abilities is None:
-                creature.abilities = []
-            for ability in bonus["abilities"]:
-                if ability not in creature.abilities:
-                    creature.abilities.append(ability)
-
-        # Healing bonus (increases Healing X amount)
-        if "healing_bonus" in bonus:
-            if creature.abilities:
-                for i, ability in enumerate(creature.abilities):
-                    if ability.startswith("Healing"):
-                        parts = ability.split()
-                        if len(parts) >= 2:
-                            try:
-                                current_val = int(parts[1])
-                                creature.abilities[i] = f"Healing {current_val + bonus['healing_bonus']}"
-                            except ValueError:
-                                pass
-
-        # Size change (Spider, Slime grow to 2x2)
-        if "size" in bonus and bonus["size"] == "2x2":
-            creature.size = "2x2"
-            if "glyphs" in bonus:
-                creature.glyphs = bonus["glyphs"]
 
 
 def end_battle_experience(
@@ -332,14 +232,6 @@ def get_tier_progress(creature: Creature, hero_int: int) -> dict:
     Returns dict with current tier, battles completed, and battles needed for next tier.
     """
     if creature.base_requirement == 0:
-        return {
-            "tier": creature.tier,
-            "battles": creature.battles_completed,
-            "next_tier_battles": None,
-            "progress_percent": 100,
-        }
-
-    if creature.tier >= 3:
         return {
             "tier": creature.tier,
             "battles": creature.battles_completed,

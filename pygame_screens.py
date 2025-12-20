@@ -36,7 +36,8 @@ class Screen(ABC):
                 game.toggle_fullscreen()
             elif event.key == pygame.K_ESCAPE:
                 if not self.handle_specific_event(event, game):
-                     game.running = False
+                    # Show exit confirmation popup instead of quitting directly
+                    game.current_front_screen = game.exit_confirmation_screen
             else:
                 self.handle_specific_event(event, game)
         else:
@@ -63,6 +64,55 @@ class Screen(ABC):
         else:
             rect.topleft = (x, y)
         screen.blit(surface, rect)
+
+
+class ExitConfirmationScreen(Screen):
+    """Popup screen for exit confirmation."""
+
+    def __init__(self):
+        self.font = pygame.font.SysFont("monospace", 18, bold=True)
+        self.small_font = pygame.font.SysFont("monospace", 14)
+
+    def handle_event(self, event: pygame.event.Event, game: "game_module.Game") -> None:
+        """Override to prevent escape from showing another popup."""
+        if event.type == pygame.QUIT:
+            game.running = False
+        elif event.type == pygame.KEYDOWN:
+            self.handle_specific_event(event, game)
+
+    def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_y:
+                game.running = False
+                return True
+            elif event.key == pygame.K_m:
+                game.current_front_screen = None
+                game.current_back_screen = game.main_menu
+                return True
+            elif event.key in (pygame.K_n, pygame.K_ESCAPE):
+                game.current_front_screen = None
+                return True
+        return False
+
+    def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        # Draw semi-transparent overlay
+        overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        # Draw confirmation box
+        box_width, box_height = 300, 120
+        box_x = (screen.get_width() - box_width) // 2
+        box_y = (screen.get_height() - box_height) // 2
+
+        pygame.draw.rect(screen, (40, 40, 40), (box_x, box_y, box_width, box_height))
+        pygame.draw.rect(screen, (150, 150, 150), (box_x, box_y, box_width, box_height), 2)
+
+        center_x = screen.get_width() // 2
+        self.draw_text(screen, "Quit game?", center_x, box_y + 30, (255, 255, 255), self.font, centered=True)
+        self.draw_text(screen, "(Y)es  /  (N)o", center_x, box_y + 60, (200, 200, 200), self.small_font, centered=True)
+        self.draw_text(screen, "(M)ain Menu", center_x, box_y + 85, (200, 200, 200), self.small_font, centered=True)
+
 
 class BiomeOrderScreen(Screen):
     """Screen shown before a new run to display biome order."""
@@ -187,42 +237,275 @@ class TeamArrangementScreen(Screen):
                     
                     # 1. Grid <-> Grid
                     if area1 == "grid" and area2 == "grid":
-                        player.creatures[idx1], player.creatures[idx2] = player.creatures[idx2], player.creatures[idx1]
+                        unit1 = player.creatures[idx1] if idx1 != player.team_position else None
+                        unit2 = player.creatures[idx2] if idx2 != player.team_position else None
+                        size1 = getattr(unit1, "size", "1x1") if unit1 else "1x1"
+                        size2 = getattr(unit2, "size", "1x1") if unit2 else "1x1"
+
+                        # 2x2 unit movement within grid
+                        if size1 == "2x2":
+                            # Find top-left of the 2x2 unit
+                            top_left = None
+                            for i, c in enumerate(player.creatures):
+                                if c is unit1:
+                                    if top_left is None or i < top_left:
+                                        top_left = i
+                            tl_row, tl_col = top_left // 3, top_left % 3
+
+                            # Calculate delta from source to target
+                            src_row, src_col = idx1 // 3, idx1 % 3
+                            tgt_row, tgt_col = idx2 // 3, idx2 % 3
+                            dr, dc = tgt_row - src_row, tgt_col - src_col
+
+                            # Only allow orthogonal 1-step moves
+                            if not ((abs(dr) == 1 and dc == 0) or (dr == 0 and abs(dc) == 1)):
+                                self.swap_source = None
+                                return True
+
+                            # Calculate new top-left position
+                            new_tl_row, new_tl_col = tl_row + dr, tl_col + dc
+
+                            # Check bounds (2x2 must fit in grid)
+                            if new_tl_row < 0 or new_tl_row > 1 or new_tl_col < 0 or new_tl_col > 1:
+                                self.swap_source = None
+                                return True
+
+                            # Old and new positions
+                            old_positions = [
+                                tl_row * 3 + tl_col,
+                                tl_row * 3 + tl_col + 1,
+                                (tl_row + 1) * 3 + tl_col,
+                                (tl_row + 1) * 3 + tl_col + 1,
+                            ]
+                            new_positions = [
+                                new_tl_row * 3 + new_tl_col,
+                                new_tl_row * 3 + new_tl_col + 1,
+                                (new_tl_row + 1) * 3 + new_tl_col,
+                                (new_tl_row + 1) * 3 + new_tl_col + 1,
+                            ]
+
+                            # Check player overlap
+                            if player.team_position in new_positions:
+                                self.swap_source = None
+                                return True
+
+                            # Positions being vacated and newly occupied
+                            vacated = [p for p in old_positions if p not in new_positions]
+                            newly_occupied = [p for p in new_positions if p not in old_positions]
+
+                            # Collect displaced units from newly occupied positions
+                            displaced = []
+                            for pos in newly_occupied:
+                                other = player.creatures[pos]
+                                if other is not None and other is not unit1:
+                                    displaced.append(other)
+
+                            # Clear old positions
+                            for pos in old_positions:
+                                player.creatures[pos] = None
+
+                            # Place 2x2 in new positions
+                            for pos in new_positions:
+                                player.creatures[pos] = unit1
+
+                            # Place displaced units in vacated positions
+                            for i, unit in enumerate(displaced):
+                                if i < len(vacated):
+                                    player.creatures[vacated[i]] = unit
+                                else:
+                                    pending.append(unit)
+
+                        elif size2 == "2x2":
+                            # Can't swap onto a 2x2 from a 1x1; user should select the 2x2 to move it
+                            self.swap_source = None
+                            return True
+
+                        # Handle player position swaps
+                        elif idx1 == player.team_position:
+                            # Moving player to idx2, move creature at idx2 to idx1
+                            player.creatures[idx1] = player.creatures[idx2]
+                            player.creatures[idx2] = None
+                            player.team_position = idx2
+                        elif idx2 == player.team_position:
+                            # Moving player to idx1, move creature at idx1 to idx2
+                            player.creatures[idx2] = player.creatures[idx1]
+                            player.creatures[idx1] = None
+                            player.team_position = idx1
+                        else:
+                            # Normal creature swap
+                            player.creatures[idx1], player.creatures[idx2] = player.creatures[idx2], player.creatures[idx1]
                     
                     # 2. Pending -> Grid
                     elif area1 == "pending" and area2 == "grid":
                         recruit = pending[idx1]
-                        existing = player.creatures[idx2]
-                        
-                        if isinstance(existing, Player):
-                            self.swap_source = None
-                            return True
+                        recruit_size = getattr(recruit, "size", "1x1")
 
-                        player.creatures[idx2] = recruit
-                        if existing:
-                            pending[idx1] = existing
-                        else:
+                        if recruit_size == "2x2":
+                            # 2x2 placement: idx2 becomes top-left of 2x2 footprint
+                            top_left_row = idx2 // 3
+                            top_left_col = idx2 % 3
+
+                            # Check if 2x2 fits (must not exceed grid bounds)
+                            if top_left_row > 1 or top_left_col > 1:
+                                # Can't place - would extend beyond grid
+                                self.swap_source = None
+                                return True
+
+                            # Calculate all 4 positions
+                            positions = [
+                                top_left_row * 3 + top_left_col,      # top-left
+                                top_left_row * 3 + top_left_col + 1,  # top-right
+                                (top_left_row + 1) * 3 + top_left_col,      # bottom-left
+                                (top_left_row + 1) * 3 + top_left_col + 1,  # bottom-right
+                            ]
+
+                            # Check if player is in any of these positions
+                            if player.team_position in positions:
+                                self.swap_source = None
+                                return True
+
+                            # Collect displaced units
+                            displaced = []
+                            for pos in positions:
+                                existing = player.creatures[pos]
+                                if existing is not None:
+                                    # Don't add duplicates (in case of existing 2x2)
+                                    if existing not in displaced:
+                                        displaced.append(existing)
+                                    player.creatures[pos] = None
+
+                            # Place 2x2 unit in all 4 positions
+                            for pos in positions:
+                                player.creatures[pos] = recruit
+
+                            # Remove recruit from pending and add displaced units
                             pending.pop(idx1)
+                            for d in displaced:
+                                pending.append(d)
+
                             if self.selected_area == "pending" and self.selected_index >= len(pending):
                                 self.selected_index = max(0, len(pending) - 1)
+                        else:
+                            # 1x1 placement (original logic)
+                            # Can't place recruit on player's position
+                            if idx2 == player.team_position:
+                                self.swap_source = None
+                                return True
+
+                            existing = player.creatures[idx2]
+
+                            player.creatures[idx2] = recruit
+                            if existing:
+                                pending[idx1] = existing
+                            else:
+                                pending.pop(idx1)
+                                if self.selected_area == "pending" and self.selected_index >= len(pending):
+                                    self.selected_index = max(0, len(pending) - 1)
                     
                     # 3. Grid -> Pending
                     elif area1 == "grid" and area2 == "pending":
-                        existing = player.creatures[idx1]
-                        if isinstance(existing, Player):
-                            self.swap_source = None # Prevent Player -> Pending
+                        # Can't move player to pending
+                        if idx1 == player.team_position:
+                            self.swap_source = None
                             return True
 
+                        existing = player.creatures[idx1]
+                        recruit = pending[idx2]
+                        recruit_size = getattr(recruit, "size", "1x1")
+
                         if existing:
-                            recruit = pending[idx2]
-                            player.creatures[idx1] = recruit
-                            pending[idx2] = existing
+                            existing_size = getattr(existing, "size", "1x1")
+
+                            if existing_size == "2x2":
+                                # Remove 2x2 from all positions
+                                for i, c in enumerate(player.creatures):
+                                    if c is existing:
+                                        player.creatures[i] = None
+
+                            # Now place the recruit
+                            if recruit_size == "2x2":
+                                # Use idx1 as top-left for 2x2 placement
+                                top_left_row = idx1 // 3
+                                top_left_col = idx1 % 3
+
+                                if top_left_row > 1 or top_left_col > 1:
+                                    # Can't place 2x2 here - restore and cancel
+                                    if existing_size == "2x2":
+                                        # Need to restore the 2x2 - find its original positions
+                                        # For now, just add back to pending
+                                        pending.append(existing)
+                                    else:
+                                        player.creatures[idx1] = existing
+                                    self.swap_source = None
+                                    return True
+
+                                positions = [
+                                    top_left_row * 3 + top_left_col,
+                                    top_left_row * 3 + top_left_col + 1,
+                                    (top_left_row + 1) * 3 + top_left_col,
+                                    (top_left_row + 1) * 3 + top_left_col + 1,
+                                ]
+
+                                if player.team_position in positions:
+                                    # Restore and cancel
+                                    if existing_size == "2x2":
+                                        pending.append(existing)
+                                    else:
+                                        player.creatures[idx1] = existing
+                                    self.swap_source = None
+                                    return True
+
+                                # Collect any additional displaced units (not the original existing)
+                                for pos in positions:
+                                    other = player.creatures[pos]
+                                    if other is not None and other is not existing:
+                                        if other not in pending:
+                                            pending.append(other)
+                                        player.creatures[pos] = None
+
+                                # Place 2x2 recruit
+                                for pos in positions:
+                                    player.creatures[pos] = recruit
+                                pending[idx2] = existing
+                            else:
+                                # 1x1 recruit placement
+                                player.creatures[idx1] = recruit
+                                pending[idx2] = existing
                         else:
                             # Grid is empty, just place the recruit
-                            recruit = pending[idx2]
-                            player.creatures[idx1] = recruit
-                            pending.pop(idx2)
-                            # Move selection to the grid slot where the recruit was placed
+                            if recruit_size == "2x2":
+                                top_left_row = idx1 // 3
+                                top_left_col = idx1 % 3
+
+                                if top_left_row > 1 or top_left_col > 1:
+                                    self.swap_source = None
+                                    return True
+
+                                positions = [
+                                    top_left_row * 3 + top_left_col,
+                                    top_left_row * 3 + top_left_col + 1,
+                                    (top_left_row + 1) * 3 + top_left_col,
+                                    (top_left_row + 1) * 3 + top_left_col + 1,
+                                ]
+
+                                if player.team_position in positions:
+                                    self.swap_source = None
+                                    return True
+
+                                # Collect displaced units
+                                for pos in positions:
+                                    other = player.creatures[pos]
+                                    if other is not None:
+                                        if other not in pending:
+                                            pending.append(other)
+                                        player.creatures[pos] = None
+
+                                for pos in positions:
+                                    player.creatures[pos] = recruit
+                                pending.pop(idx2)
+                            else:
+                                player.creatures[idx1] = recruit
+                                pending.pop(idx2)
                             self.selected_area = "grid"
                             self.selected_index = idx1
                     
@@ -236,15 +519,25 @@ class TeamArrangementScreen(Screen):
             elif event.key in (pygame.K_DELETE, pygame.K_BACKSPACE):
                 if self.selected_area == "grid":
                     player = self._get_player(game)
-                    creature = player.creatures[self.selected_index]
-                    
-                    if isinstance(creature, Player):
+
+                    # Can't delete the player
+                    if self.selected_index == player.team_position:
                         return True
-                        
-                    player.creatures[self.selected_index] = None
+
+                    existing = player.creatures[self.selected_index]
+                    if existing:
+                        existing_size = getattr(existing, "size", "1x1")
+                        if existing_size == "2x2":
+                            # Clear all 4 positions of the 2x2 unit
+                            for i, c in enumerate(player.creatures):
+                                if c is existing:
+                                    player.creatures[i] = None
+                        else:
+                            player.creatures[self.selected_index] = None
+
                     if self.swap_source == ("grid", self.selected_index):
                         self.swap_source = None
-                        
+
                 elif self.selected_area == "pending":
                     if game.gamestate.pending_recruits:
                         game.gamestate.pending_recruits.pop(self.selected_index)
@@ -286,6 +579,9 @@ class TeamArrangementScreen(Screen):
         grid_start_x = center_x - (1.5 * tile_w)
         grid_start_y = center_y - (2.0 * tile_h)
 
+        # Track rendered 2x2 units to avoid double-rendering
+        rendered_2x2 = set()
+
         for i in range(9):
             grid_x = i % 3
             grid_y = i // 3
@@ -294,7 +590,11 @@ class TeamArrangementScreen(Screen):
 
             pygame.draw.rect(screen, (50, 50, 50), (x, y, tile_w, tile_h), 1)
 
-            creature = player.creatures[i]
+            # Show player at their team_position, creatures elsewhere
+            if i == player.team_position:
+                creature = player
+            else:
+                creature = player.creatures[i]
 
             if self.selected_area == "grid" and i == self.selected_index:
                 pygame.draw.rect(screen, (255, 255, 0), (x, y, tile_w, tile_h), 2)
@@ -303,18 +603,35 @@ class TeamArrangementScreen(Screen):
                 pygame.draw.rect(screen, (0, 255, 0), (x+4, y+4, tile_w-8, tile_h-8), 2)
 
             if creature:
-                # Handle 2x2 units
                 size = getattr(creature, "size", "1x1")
+
                 if size == "2x2":
-                    glyphs = getattr(creature, "glyphs", None) or [creature.symbol] * 4
-                    # Render 4 glyphs in 2x2 pattern within the cell
-                    half_w = tile_w // 2
-                    half_h = tile_h // 2
-                    for gi, (dx, dy) in enumerate([(0, 0), (1, 0), (0, 1), (1, 1)]):
-                        glyph = glyphs[gi] if gi < len(glyphs) else creature.symbol
-                        sprite = game.sprite_manager.get_sprite(glyph, creature.color)
-                        scaled = pygame.transform.scale(sprite, (half_w, half_h))
-                        screen.blit(scaled, (x + dx * half_w, y + dy * half_h))
+                    # Skip if already rendered
+                    if id(creature) in rendered_2x2:
+                        continue
+                    rendered_2x2.add(id(creature))
+
+                    # Find top-left position of this 2x2 unit
+                    positions = [idx for idx, c in enumerate(player.creatures) if c is creature]
+                    if positions:
+                        min_pos = min(positions)
+                        top_left_row = min_pos // 3
+                        top_left_col = min_pos % 3
+                        top_left_x = grid_start_x + top_left_col * tile_w
+                        top_left_y = grid_start_y + top_left_row * tile_h
+
+                        # Draw 2x2 unit across 4 cells
+                        glyphs = getattr(creature, "glyphs", None) or [creature.symbol] * 4
+                        for gi, (dx, dy) in enumerate([(0, 0), (1, 0), (0, 1), (1, 1)]):
+                            glyph = glyphs[gi] if gi < len(glyphs) else creature.symbol
+                            sprite = game.sprite_manager.get_sprite(glyph, creature.color)
+                            scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
+                            screen.blit(scaled, (top_left_x + dx * tile_w, top_left_y + dy * tile_h))
+
+                        # Draw selection highlight across all 4 cells if any is selected
+                        if self.selected_area == "grid" and self.selected_index in positions:
+                            pygame.draw.rect(screen, (255, 255, 0),
+                                (top_left_x, top_left_y, tile_w * 2, tile_h * 2), 2)
                 else:
                     sprite = game.sprite_manager.get_sprite(creature.symbol, creature.color)
                     scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
@@ -850,30 +1167,99 @@ class MapView(Screen):
             pygame.K_PERIOD: (1, 1),
         }
         self.font = pygame.font.SysFont("monospace", 14)
+        # Auto-walk state
+        self.waiting_for_walk_dir = False
+        self.auto_walk_dir = None  # (dx, dy) or None
+        self.last_walk_time = 0
+        self.walk_delay_ms = 50  # Milliseconds between auto-walk steps
 
     def handle_specific_event(self, event: pygame.event.Event, game: "game_module.Game") -> bool:
         if event.type == pygame.KEYDOWN:
+            # Cancel auto-walk on any key
+            if self.auto_walk_dir is not None:
+                self.auto_walk_dir = None
+                return True
+
+            # Check for 'w' to enter walk mode
+            if event.key == pygame.K_w:
+                self.waiting_for_walk_dir = True
+                return True
+
             if event.key in self.direction_map:
                 dx, dy = self.direction_map[event.key]
-                game.gamestate = advance_step(game.gamestate, ("move", dx, dy))
 
-                # Check status
-                if game.gamestate.status == "won":
-                    game.current_back_screen = game.win_screen
-                    return True
-                elif game.gamestate.status == "lost":
-                    game.current_back_screen = game.game_over_screen
-                    return True
-
-                # Check if player used exit (pending floor advancement)
-                if game.gamestate.pending_next_stage:
-                    game.current_back_screen = game.stat_allocation_screen
+                # If waiting for walk direction, start auto-walk
+                if self.waiting_for_walk_dir:
+                    self.waiting_for_walk_dir = False
+                    self.auto_walk_dir = (dx, dy)
+                    self.last_walk_time = pygame.time.get_ticks()
+                    # Take the first step immediately
+                    self._do_walk_step(game)
                     return True
 
-                if game.gamestate.active_encounter is not None:
-                    game.current_back_screen = game.encounter_start_screen
+                # Normal single-step movement
+                self._do_move(game, dx, dy)
+                return True
+
+            # Any other key cancels waiting mode
+            if self.waiting_for_walk_dir:
+                self.waiting_for_walk_dir = False
                 return True
         return False
+
+    def _do_move(self, game: "game_module.Game", dx: int, dy: int) -> bool:
+        """Execute a single move and handle screen transitions. Returns True if should stop auto-walk."""
+        # Get player position before move
+        player = None
+        for p in game.gamestate.placeables or []:
+            if isinstance(p, Player):
+                player = p
+                break
+        old_x, old_y = player.x, player.y if player else (0, 0)
+
+        game.gamestate = advance_step(game.gamestate, ("move", dx, dy))
+
+        # Check if player hit a wall (position didn't change)
+        if player and player.x == old_x and player.y == old_y:
+            return True  # Stop auto-walk
+
+        # Check status
+        if game.gamestate.status == "won":
+            game.current_back_screen = game.win_screen
+            return True
+        elif game.gamestate.status == "lost":
+            game.current_back_screen = game.game_over_screen
+            return True
+
+        # Check if player used exit (pending floor advancement)
+        if game.gamestate.pending_next_stage:
+            game.current_back_screen = game.stat_allocation_screen
+            return True
+
+        if game.gamestate.active_encounter is not None:
+            game.current_back_screen = game.encounter_start_screen
+            return True
+
+        return False  # Continue auto-walk
+
+    def _do_walk_step(self, game: "game_module.Game") -> None:
+        """Take one auto-walk step."""
+        if self.auto_walk_dir is None:
+            return
+        dx, dy = self.auto_walk_dir
+        should_stop = self._do_move(game, dx, dy)
+        if should_stop:
+            self.auto_walk_dir = None
+
+    def update(self, game: "game_module.Game") -> None:
+        """Called each frame for auto-walk updates."""
+        if self.auto_walk_dir is None:
+            return
+
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_walk_time >= self.walk_delay_ms:
+            self.last_walk_time = current_time
+            self._do_walk_step(game)
 
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
@@ -905,6 +1291,12 @@ class MapView(Screen):
         
         # Draw HUD
         self.draw_text(screen, f"Level: {game.gamestate.current_stage}/{game.gamestate.max_stages}", 10, 10, (255, 255, 255), self.font)
+
+        # Show walk mode indicator
+        if self.waiting_for_walk_dir:
+            self.draw_text(screen, "Walk: press direction", 10, 26, (255, 255, 0), self.font)
+        elif self.auto_walk_dir is not None:
+            self.draw_text(screen, "Walking... (press any key to stop)", 10, 26, (200, 200, 0), self.font)
 
 class EncounterStartScreen(Screen):
     """Screen shown when the player first encounters something."""
@@ -963,9 +1355,12 @@ class EncounterScreen(Screen):
                     action_type = "attack" if self.mode == EncounterMode.ATTACK else "convert"
                     game.gamestate = advance_step(game.gamestate, (action_type, target_x, target_y))
                     
-                    # Check win condition (if encounter ended by winning boss fight)
+                    # Check win/lose conditions
                     if game.gamestate.status == "won":
                         game.current_back_screen = game.win_screen
+                        return True
+                    elif game.gamestate.status == "lost":
+                        game.current_back_screen = game.game_over_screen
                         return True
 
                     self.mode = EncounterMode.NORMAL
@@ -1094,24 +1489,18 @@ class EncounterScreen(Screen):
         # --- INFO PANEL (Left) ---
         self.draw_text(screen, "BATTLE INFO", 20, 20, (255, 255, 0), self.header_font)
 
-        # Turn indicator
-        current_turn = getattr(game.gamestate.active_encounter, "current_turn", "player")
-        turn_color = (100, 255, 100) if current_turn == "player" else (255, 100, 100)
-        turn_text = "YOUR TURN" if current_turn == "player" else "ENEMY TURN"
-        self.draw_text(screen, turn_text, 20, 50, turn_color, self.font)
-
         selected_entity = self._get_selected_entity(game)
         if selected_entity:
             side_label = "Ally" if self.selected_side == "player" else "Enemy"
             name = getattr(selected_entity, "name", "Unknown")
 
-            self.draw_text(screen, f"{side_label}: {name}", 20, 85, (200, 200, 200), self.font)
+            self.draw_text(screen, f"{side_label}: {name}", 20, 50, (200, 200, 200), self.font)
 
             hp_color = (0, 255, 0) if selected_entity.current_health > 30 else (255, 100, 100)
-            self.draw_text(screen, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", 20, 110, hp_color, self.font)
+            self.draw_text(screen, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", 20, 75, hp_color, self.font)
 
             # Defense stats
-            y_offset = 128
+            y_offset = 93
             defense = getattr(selected_entity, "defense", getattr(selected_entity, "base_defense", 0))
             dodge = getattr(selected_entity, "dodge", getattr(selected_entity, "base_dodge", 0))
             resistance = getattr(selected_entity, "resistance", getattr(selected_entity, "base_resistance", 0))

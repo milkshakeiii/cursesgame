@@ -146,12 +146,12 @@ def get_enemy_attack_targets(
     return targets
 
 
-def choose_enemy_target(encounter: Encounter) -> tuple[int, int]:
+def choose_enemy_target(encounter: Encounter) -> tuple[tuple[int, int], int]:
     """Choose the target square that yields highest total damage.
 
     Enemy AI always chooses Attack and targets optimally.
     Considers empty squares for Splash attacks.
-    Returns (col, row) of target square.
+    Returns ((col, row), damage) of target square and expected damage.
     """
     best_target = (1, 1)  # Default to center
     best_damage = -1
@@ -165,13 +165,14 @@ def choose_enemy_target(encounter: Encounter) -> tuple[int, int]:
                 best_damage = damage
                 best_target = (col, row)
 
-    return best_target
+    return best_target, max(0, best_damage)
 
 
 def execute_enemy_turn(gamestate: GameState) -> list[dict]:
     """Execute the enemy team's turn.
 
     Enemies always attack (no convert).
+    If no attack can deal damage, try to move a unit instead.
     Dragon King moves randomly after attacking.
 
     Returns list of action results for animation/logging.
@@ -196,10 +197,15 @@ def execute_enemy_turn(gamestate: GameState) -> list[dict]:
     add_combat_log(encounter, "--- Enemy Turn ---")
 
     # Choose target square
-    target_col, target_row = choose_enemy_target(encounter)
+    (target_col, target_row), expected_damage = choose_enemy_target(encounter)
 
-    # Execute attack
-    results = resolve_team_attack(gamestate, player, target_col, target_row, is_player_turn=False)
+    if expected_damage > 0:
+        # Execute attack
+        results = resolve_team_attack(gamestate, player, target_col, target_row, is_player_turn=False)
+    else:
+        # No attack can deal damage, try to move a unit instead
+        results = []
+        try_enemy_movement(encounter)
 
     # Dragon King special: move randomly after attacking
     handle_dragon_king_movement(encounter)
@@ -237,10 +243,58 @@ def handle_dragon_king_movement(encounter: Encounter) -> None:
             break  # Only one Dragon King
 
 
+def try_enemy_movement(encounter: Encounter) -> bool:
+    """Try to move an enemy unit when no attacks can deal damage.
+
+    Melee units move vertically (change row).
+    Ranged/magic units move horizontally (change column).
+    Returns True if a unit was moved.
+    """
+    from gameplay import resolve_move_action
+
+    # Get list of unique enemy units with their positions
+    processed = set()
+    units_with_positions = []
+
+    for idx, unit in enumerate(encounter.enemy_team or []):
+        if unit is None or id(unit) in processed:
+            continue
+        processed.add(id(unit))
+
+        # Skip 2x2 units for now (they have special movement)
+        if getattr(unit, "size", "1x1") == "2x2":
+            continue
+
+        # Determine unit's primary attack type
+        attacks = getattr(unit, "attacks", []) or []
+        attack_types = [a.attack_type for a in attacks]
+
+        units_with_positions.append((idx, unit, attack_types))
+
+    # Shuffle to randomize which unit moves
+    random.shuffle(units_with_positions)
+
+    for idx, unit, attack_types in units_with_positions:
+        # Determine movement direction based on attack type
+        if "melee" in attack_types:
+            # Melee units move vertically (up or down)
+            directions = [(0, -1), (0, 1)]
+        else:
+            # Ranged/magic units move horizontally (left or right)
+            directions = [(-1, 0), (1, 0)]
+
+        random.shuffle(directions)
+
+        for direction in directions:
+            if resolve_move_action(encounter, idx, direction, is_player=False):
+                return True
+
+    return False
+
+
 def get_enemy_action_description(encounter: Encounter) -> str:
     """Get a description of what the enemy is about to do (for UI)."""
-    target_col, target_row = choose_enemy_target(encounter)
-    damage = calculate_potential_damage(encounter, target_col, target_row)
+    (target_col, target_row), damage = choose_enemy_target(encounter)
 
     # Count attacking units
     attacking_units = 0

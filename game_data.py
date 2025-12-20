@@ -82,6 +82,105 @@ class Creature:
     base_requirement: int = 5  # Base battles needed for tier 1
     tier_bonuses: list[dict] = field(default_factory=list)  # Per-tier stat/ability unlocks
 
+    def apply_tier_bonus(self, tier: int) -> None:
+        """Apply stat and ability bonuses for a specific tier."""
+        if not self.tier_bonuses:
+            return
+
+        for bonus in self.tier_bonuses:
+            if bonus.get("tier") != tier:
+                continue
+
+            # Stat bonuses
+            if "max_health" in bonus:
+                self.max_health += bonus["max_health"]
+                self.current_health += bonus["max_health"]
+            if "defense" in bonus:
+                self.defense += bonus["defense"]
+            if "dodge" in bonus:
+                self.dodge += bonus["dodge"]
+            if "resistance" in bonus:
+                self.resistance += bonus["resistance"]
+            if "conversion_efficacy" in bonus:
+                self.conversion_efficacy += bonus["conversion_efficacy"]
+
+            # Attack damage bonuses
+            if "melee_damage" in bonus:
+                for attack in self.attacks or []:
+                    if attack.attack_type == "melee":
+                        attack.damage += bonus["melee_damage"]
+            if "ranged_damage" in bonus:
+                for attack in self.attacks or []:
+                    if attack.attack_type == "ranged":
+                        attack.damage += bonus["ranged_damage"]
+            if "magic_damage" in bonus:
+                for attack in self.attacks or []:
+                    if attack.attack_type == "magic":
+                        attack.damage += bonus["magic_damage"]
+
+            # New attack
+            if "new_attack" in bonus:
+                new_atk = bonus["new_attack"]
+                range_str = new_atk.get("range", "")
+                range_min, range_max = None, None
+                if range_str and "-" in range_str:
+                    parts = range_str.split("-")
+                    range_min = int(parts[0])
+                    range_max = int(parts[1])
+
+                attack = Attack(
+                    attack_type=new_atk["type"],
+                    damage=new_atk["damage"],
+                    range_min=range_min,
+                    range_max=range_max,
+                    abilities=new_atk.get("abilities", []),
+                )
+                if self.attacks is None:
+                    self.attacks = []
+                self.attacks.append(attack)
+
+            # Attack ability additions
+            if "attack_abilities" in bonus:
+                for attack_type, abilities in bonus["attack_abilities"].items():
+                    for attack in self.attacks or []:
+                        if attack.attack_type == attack_type:
+                            if attack.abilities is None:
+                                attack.abilities = []
+                            attack.abilities.extend(abilities)
+
+            # Ability unlocks
+            if "abilities" in bonus:
+                if self.abilities is None:
+                    self.abilities = []
+                for ability in bonus["abilities"]:
+                    if ability not in self.abilities:
+                        self.abilities.append(ability)
+
+            # Healing bonus (increases Healing X amount)
+            if "healing_bonus" in bonus:
+                if self.abilities:
+                    for i, ability in enumerate(self.abilities):
+                        if ability.startswith("Healing"):
+                            parts = ability.split()
+                            if len(parts) >= 2:
+                                try:
+                                    current_val = int(parts[1])
+                                    self.abilities[i] = f"Healing {current_val + bonus['healing_bonus']}"
+                                except ValueError:
+                                    pass
+
+            # Size change (Spider, Slime grow to 2x2)
+            if "size" in bonus and bonus["size"] == "2x2":
+                self.size = "2x2"
+                if "glyphs" in bonus:
+                    self.glyphs = bonus["glyphs"]
+
+    def set_tier(self, target_tier: int) -> None:
+        """Set creature to a specific tier, applying all bonuses from tier 1 up to target."""
+        for t in range(self.tier + 1, target_tier + 1):
+            self.apply_tier_bonus(t)
+        self.tier = target_tier
+
 
 @dataclass
 class Encounter(Placeable):
@@ -143,6 +242,7 @@ class Player(Placeable):
 
     # Team
     creatures: list[Optional[Creature]] = None
+    team_position: int = 4  # Player's position in the 3x3 grid (0-8, default center)
 
     def __post_init__(self):
         """Initialize mutable default values."""

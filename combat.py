@@ -286,29 +286,6 @@ def calculate_damage(
     return max(1, effective_damage - defense) if effective_damage > 0 else 0
 
 
-def calculate_conversion(
-    attack: Attack,
-    attacker: Union[Creature, Player],
-    defender: Creature,
-    effective_efficacy: int,
-) -> int:
-    """Calculate conversion points.
-
-    Formula: max(0, floor(attack_damage * (efficacy/100)) - highest_defense)
-    50% bonus if target below 50% HP (applied before defense).
-    """
-    base_conversion = math.floor(attack.damage * (effective_efficacy / 100))
-
-    # 50% bonus if target below 50% HP
-    if defender.current_health < defender.max_health / 2:
-        base_conversion = math.floor(base_conversion * 1.5)
-
-    # Defended by highest defense stat
-    highest_defense = max(defender.defense, defender.dodge, defender.resistance)
-
-    return max(0, base_conversion - highest_defense)
-
-
 # === HERO STAT CALCULATIONS ===
 
 

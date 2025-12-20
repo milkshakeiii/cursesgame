@@ -8,7 +8,6 @@ from terrain_gen import generate_biome_terrain
 from creatures import spawn_creature, get_creature_for_terrain, BIOME_TERRAIN_CREATURES
 from combat import (
     calculate_damage,
-    calculate_conversion,
     calculate_effective_efficacy,
     get_melee_target,
     get_ranged_targets,
@@ -298,7 +297,7 @@ def resolve_team_attack(
         for try_row in rows_to_try:
             candidate = select_best_attack(
                 encounter, unit, attacks, attacker_col, try_row,
-                target_col, target_row, is_player_turn
+                target_col, target_row, is_player_turn, player
             )
             if candidate is not None:
                 # For 2x2 melee, prefer the row that can actually hit
@@ -327,9 +326,6 @@ def resolve_team_attack(
                 unit_attacked = True
                 continue
 
-            # Check flying immunity
-            defender_has_flying = check_flying(target)
-
             # Get effective damage with all bonuses
             effective_damage = get_effective_attack_damage(unit, best_attack, encounter, is_player_turn)
             modified_attack = Attack(
@@ -340,11 +336,9 @@ def resolve_team_attack(
                 abilities=best_attack.abilities,
             )
 
-            # Calculate final damage with defense bonuses
-            attacker_debuffs = getattr(unit, "debuffs", {}) or {}
-            damage = calculate_damage_with_bonuses(
-                modified_attack, unit, target, attacker_debuffs, defender_has_flying,
-                encounter, is_player_turn, player
+            # Calculate final damage (includes Flying immunity, defense bonuses)
+            damage = calculate_attack_result(
+                modified_attack, unit, target, encounter, is_player_turn, player
             )
 
             # Apply damage
@@ -388,10 +382,55 @@ def resolve_team_attack(
     for attacker in attackers:
         clear_debuff_stacks(attacker)
 
-    # Remove dead enemies
-    remove_dead_units(encounter, is_player_turn)
+    # Remove dead units (and update player.creatures if ally dies)
+    remove_dead_units(encounter, is_player_turn, player)
 
     return results
+
+
+def calculate_expected_result(
+    encounter: Encounter,
+    unit: Union[Creature, Player],
+    attack: Attack,
+    attacker_col: int,
+    attacker_row: int,
+    target_col: int,
+    target_row: int,
+    is_player_turn: bool,
+    player: Player,
+    for_conversion: bool = False,
+    effective_efficacy: int = 100,
+) -> int:
+    """Calculate total expected damage or conversion points for an attack.
+
+    Uses calculate_attack_result to account for Flying, defense, etc.
+    Does not account for Evasion (random) or apply any actual changes.
+    """
+    targets = get_attack_targets(
+        encounter, attack, attacker_col, attacker_row, target_col, target_row, is_player_turn
+    )
+    if not targets:
+        return 0
+
+    total = 0
+    for target, _, _ in targets:
+        # Get effective damage with all bonuses
+        effective_damage = get_effective_attack_damage(unit, attack, encounter, is_player_turn)
+        modified_attack = Attack(
+            attack_type=attack.attack_type,
+            damage=effective_damage,
+            range_min=attack.range_min,
+            range_max=attack.range_max,
+            abilities=attack.abilities,
+        )
+
+        result = calculate_attack_result(
+            modified_attack, unit, target, encounter, is_player_turn, player,
+            for_conversion, effective_efficacy
+        )
+        total += result
+
+    return total
 
 
 def select_best_attack(
@@ -403,50 +442,65 @@ def select_best_attack(
     target_col: int,
     target_row: int,
     is_player_turn: bool,
+    player: Optional[Player] = None,
+    for_conversion: bool = False,
+    effective_efficacy: int = 100,
 ) -> Optional[Attack]:
     """Select the best attack that can hit the target.
 
-    Returns the attack with highest damage that can reach the target.
+    Returns the attack with highest expected result (damage or conversion points).
     """
     best_attack = None
-    best_damage = -1
+    best_result = -1
 
     for attack in attacks:
-        targets = get_attack_targets(
-            encounter, attack, attacker_col, attacker_row, target_col, target_row, is_player_turn
+        expected = calculate_expected_result(
+            encounter, unit, attack, attacker_col, attacker_row,
+            target_col, target_row, is_player_turn, player,
+            for_conversion, effective_efficacy
         )
-        if targets:
-            # This attack can hit targets
-            effective_damage = get_effective_attack_damage(unit, attack, encounter, is_player_turn)
-            if effective_damage > best_damage:
-                best_damage = effective_damage
-                best_attack = attack
+        if expected > best_result:
+            best_result = expected
+            best_attack = attack
 
     return best_attack
 
 
-def calculate_damage_with_bonuses(
+def calculate_attack_result(
     attack: Attack,
     attacker: Union[Creature, Player],
     defender: Union[Creature, Player],
-    attacker_debuffs: dict[str, int],
-    defender_has_flying: bool,
     encounter: Encounter,
     is_player_turn: bool,
     player: Player,
+    for_conversion: bool = False,
+    effective_efficacy: int = 100,
 ) -> int:
-    """Calculate damage including all defense bonuses.
+    """Calculate attack damage or conversion points.
 
-    Uses get_effective_defense which includes WIS/Guardian/Protector/Shield Wall.
-    Minimum damage is 1 unless Flying blocks melee or attack is 0.
+    Shared logic:
+    - Flying immunity to melee (returns 0)
+    - Debuff reductions (defanged/blinded/silenced/weakened)
+
+    Attack-specific (for_conversion=False):
+    - Minimum 1 damage guarantee
+    - Attack-type specific defense with get_effective_defense
+
+    Conversion-specific (for_conversion=True):
+    - Efficacy multiplier
+    - 50% bonus for low HP targets
+    - Uses highest of all defenses
     """
-    base_damage = attack.damage
+    import math
 
-    # Flying immunity to melee
-    if attack.attack_type == "melee" and defender_has_flying:
+    base_value = attack.damage
+
+    # Flying immunity to melee (shared)
+    if attack.attack_type == "melee" and check_flying(defender):
         return 0
 
-    # Apply debuffs to attack damage
+    # Apply debuffs to damage (shared)
+    attacker_debuffs = getattr(attacker, "debuffs", {}) or {}
     debuff_reduction = 0
     if attack.attack_type == "melee":
         debuff_reduction = attacker_debuffs.get("defanged", 0) * 6
@@ -458,25 +512,42 @@ def calculate_damage_with_bonuses(
         debuff_reduction = attacker_debuffs.get("silenced", 0) * 6
         debuff_reduction += attacker_debuffs.get("weakened", 0) * 3
 
-    effective_damage = max(0, base_damage - debuff_reduction)
+    base_value = max(0, base_value - debuff_reduction)
 
-    # If debuffs reduce attack to 0, deal minimum 1 damage
-    if base_damage > 0 and effective_damage == 0:
-        effective_damage = 1
+    # If debuffs reduce to 0, still deal minimum 1
+    if attack.damage > 0 and base_value == 0:
+        base_value = 1
 
-    if effective_damage == 0:
+    if base_value == 0:
         return 0
 
-    # Get effective defense with all bonuses
-    defender_is_player_side = not is_player_turn
-    if attack.attack_type == "melee":
-        defense = get_effective_defense(defender, "defense", encounter, defender_is_player_side, player)
-    elif attack.attack_type == "ranged":
-        defense = get_effective_defense(defender, "dodge", encounter, defender_is_player_side, player)
-    else:  # magic
-        defense = get_effective_defense(defender, "resistance", encounter, defender_is_player_side, player)
+    if for_conversion:
+        # Apply efficacy
+        base_value = math.floor(base_value * (effective_efficacy / 100))
 
-    return max(1, effective_damage - defense)
+        # 50% bonus if target below 50% HP
+        if defender.current_health < defender.max_health / 2:
+            base_value = math.floor(base_value * 1.5)
+
+        # Highest defense stat
+        defense = max(
+            getattr(defender, "defense", 0),
+            getattr(defender, "dodge", 0),
+            getattr(defender, "resistance", 0)
+        )
+
+        return max(0, base_value - defense)
+    else:
+        # Get effective defense with all bonuses
+        defender_is_player_side = not is_player_turn
+        if attack.attack_type == "melee":
+            defense = get_effective_defense(defender, "defense", encounter, defender_is_player_side, player)
+        elif attack.attack_type == "ranged":
+            defense = get_effective_defense(defender, "dodge", encounter, defender_is_player_side, player)
+        else:  # magic
+            defense = get_effective_defense(defender, "resistance", encounter, defender_is_player_side, player)
+
+        return max(1, base_value - defense)
 
 
 def get_attack_targets(
@@ -580,10 +651,11 @@ def resolve_team_convert(
         # Calculate effective efficacy with CHA bonus
         effective_efficacy = calculate_effective_efficacy(player, base_efficacy)
 
-        # Select best attack for conversion
+        # Select best attack for conversion (uses conversion logic for expected result)
         best_attack = select_best_attack(
             encounter, unit, attacks, attacker_col, attacker_row,
-            target_col, target_row, True
+            target_col, target_row, True, player,
+            for_conversion=True, effective_efficacy=effective_efficacy
         )
 
         if best_attack is None:
@@ -611,7 +683,10 @@ def resolve_team_convert(
                 range_max=best_attack.range_max,
                 abilities=best_attack.abilities,
             )
-            conversion = calculate_conversion(attack_with_bonus, unit, target, effective_efficacy)
+            conversion = calculate_attack_result(
+                attack_with_bonus, unit, target, encounter, True, player,
+                for_conversion=True, effective_efficacy=effective_efficacy
+            )
 
             if conversion > 0:
                 target.conversion_progress = getattr(target, "conversion_progress", 0) + conversion
@@ -725,8 +800,14 @@ def resolve_move_action(
     return True
 
 
-def remove_dead_units(encounter: Encounter, is_player_turn: bool) -> list[Creature]:
-    """Remove dead units from the battlefield. Returns list of removed units."""
+def remove_dead_units(
+    encounter: Encounter, is_player_turn: bool, player: Optional[Player] = None
+) -> list[Creature]:
+    """Remove dead units from the battlefield. Returns list of removed units.
+
+    If player is provided and it's the enemy's turn, also removes dead allies
+    from the player's permanent team.
+    """
     enemy_team = encounter.enemy_team if is_player_turn else encounter.player_team
     removed = []
     removed_ids = set()  # Track already removed for 2x2
@@ -739,6 +820,14 @@ def remove_dead_units(encounter: Encounter, is_player_turn: bool) -> list[Creatu
                 removed_ids.add(id(unit))
                 unit_name = getattr(unit, "name", "Unknown")
                 add_combat_log(encounter, f"{unit_name} is defeated!")
+
+                # If a player ally dies, also remove from player's permanent team
+                if not is_player_turn and player is not None and isinstance(unit, Creature):
+                    if player.creatures:
+                        for i, creature in enumerate(player.creatures):
+                            if creature is unit:
+                                player.creatures[i] = None
+                                break
             remove_unit_from_grid(enemy_team, unit, idx)
 
     return removed
@@ -810,8 +899,7 @@ def check_encounter_end(gamestate: GameState) -> bool:
 def initialize_encounter(encounter: Encounter, player: Player) -> None:
     """Initialize encounter state when triggered."""
     encounter.player_team = list(player.creatures)
-    # Place player in the center slot
-    encounter.player_team[4] = player
+    encounter.player_team[player.team_position] = player
     encounter.enemy_team = [None] * 9
 
     # Randomly place enemy creatures
@@ -1014,8 +1102,6 @@ def generate_map(
         player.y = GRID_HEIGHT // 2
     else:
         player = Player(x=GRID_WIDTH // 2, y=GRID_HEIGHT // 2)
-        # Ensure player is in the team grid (center)
-        player.creatures[4] = player
     
     placeables.append(player)
 
@@ -1102,7 +1188,7 @@ def generate_map(
                     # Roll for starting at higher tier
                     if encounter_rng.random() < tier_chance:
                         bonus_tier = encounter_rng.randint(1, biome_index)
-                        creature.current_tier = min(bonus_tier, 3)  # Cap at tier 3
+                        creature.set_tier(bonus_tier)
 
                     encounter_creatures.append(creature)
 

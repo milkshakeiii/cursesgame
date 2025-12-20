@@ -184,7 +184,7 @@ class TestMapView:
         assert len(map_view.direction_map) >= 8
 
     def test_mapview_handles_quit_and_escape(self):
-        """Test that MapView handles quit events and escape key."""
+        """Test that MapView handles quit events and escape shows confirmation."""
         map_view = MapView()
         game = create_test_game()
 
@@ -193,11 +193,24 @@ class TestMapView:
         map_view.handle_event(quit_event, game)
         assert game.running is False
 
-        # Reset and test Escape key
+        # Reset and test Escape key - should show exit confirmation popup
         game.running = True
         escape_event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
         map_view.handle_event(escape_event, game)
+        assert game.current_front_screen == game.exit_confirmation_screen
+
+        # Pressing Y on confirmation should quit
+        y_event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_y)
+        game.exit_confirmation_screen.handle_event(y_event, game)
         assert game.running is False
+
+        # Reset and test N dismisses popup
+        game.running = True
+        game.current_front_screen = game.exit_confirmation_screen
+        n_event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_n)
+        game.exit_confirmation_screen.handle_event(n_event, game)
+        assert game.current_front_screen is None
+        assert game.running is True
 
     def test_mapview_handles_movement(self):
         """Test that MapView handles movement keys."""
@@ -235,7 +248,7 @@ class TestMainMenu:
         assert menu.selected_index == 0
 
     def test_mainmenu_handles_quit_and_escape(self):
-        """Test that MainMenu handles quit events and escape key."""
+        """Test that MainMenu handles quit events and escape shows confirmation."""
         menu = MainMenu()
         game = create_test_game()
 
@@ -244,11 +257,11 @@ class TestMainMenu:
         menu.handle_event(quit_event, game)
         assert game.running is False
 
-        # Reset and test Escape key
+        # Reset and test Escape key - should show exit confirmation popup
         game.running = True
         escape_event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
         menu.handle_event(escape_event, game)
-        assert game.running is False
+        assert game.current_front_screen == game.exit_confirmation_screen
 
     def test_mainmenu_navigates_down(self):
         """Test that MainMenu navigates down through options."""
@@ -531,7 +544,7 @@ class TestEncounterStartScreen:
         assert screen is not None
 
     def test_encounter_start_screen_handles_quit_and_escape(self):
-        """Test that EncounterStartScreen handles quit events and escape key."""
+        """Test that EncounterStartScreen handles quit events and escape shows confirmation."""
         screen = EncounterStartScreen()
         game = create_test_game()
 
@@ -540,11 +553,11 @@ class TestEncounterStartScreen:
         screen.handle_event(quit_event, game)
         assert game.running is False
 
-        # Reset and test Escape key
+        # Reset and test Escape key - should show exit confirmation popup
         game.running = True
         escape_event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
         screen.handle_event(escape_event, game)
-        assert game.running is False
+        assert game.current_front_screen == game.exit_confirmation_screen
 
     def test_encounter_start_screen_continue_to_main(self):
         """Test that pressing Enter or Space continues to encounter screen."""
@@ -586,7 +599,7 @@ class TestEncounterScreen:
         assert screen is not None
 
     def test_encounter_screen_handles_quit_and_escape(self):
-        """Test that EncounterScreen handles quit events and escape key."""
+        """Test that EncounterScreen handles quit events and escape shows confirmation."""
         screen = EncounterScreen()
         game = create_test_game()
 
@@ -595,11 +608,11 @@ class TestEncounterScreen:
         screen.handle_event(quit_event, game)
         assert game.running is False
 
-        # Reset and test Escape key (in NORMAL mode, should quit)
+        # Reset and test Escape key (in NORMAL mode, should show confirmation)
         game.running = True
         escape_event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
         screen.handle_event(escape_event, game)
-        assert game.running is False
+        assert game.current_front_screen == game.exit_confirmation_screen
 
     def test_encounter_screen_flee_returns_to_map(self):
         """Test that pressing F flees and returns to map."""
@@ -785,6 +798,80 @@ class TestAttackAction:
         )
         assert target == enemy, "Ally at front should be able to melee"
 
+    def test_enemy_moves_when_cannot_attack(self):
+        """Test that enemies move when they can't deal damage."""
+        from ai import execute_enemy_turn, choose_enemy_target
+
+        player = Player(10, 10)
+        player.creatures = [None] * 9
+
+        # Create a melee-only enemy
+        wolf = create_test_creature(name="Wolf", attacks=[Attack(attack_type="melee", damage=4)])
+
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[wolf])
+        encounter.combat_log = []
+
+        # Put wolf in back row where it can't melee (col 2, row 1)
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[5] = wolf
+
+        # Put player in different row so wolf can't attack
+        encounter.player_team = [None] * 9
+        encounter.player_team[0] = player  # col 0, row 0
+
+        gamestate = GameState(placeables=[player, encounter], active_encounter=encounter)
+
+        # Verify wolf can't deal damage
+        (target, damage) = choose_enemy_target(encounter)
+        assert damage == 0, "Wolf should not be able to deal damage"
+
+        # Record initial position
+        initial_pos = 5
+
+        # Execute enemy turn - should move since can't attack
+        execute_enemy_turn(gamestate)
+
+        # Wolf should have moved (melee units move vertically)
+        new_positions = [i for i, u in enumerate(encounter.enemy_team) if u is wolf]
+        assert len(new_positions) == 1
+        assert new_positions[0] != initial_pos, "Wolf should have moved"
+        # Melee moves vertically, so column should stay same (col 2 = indices 2, 5, 8)
+        assert new_positions[0] in [2, 8], "Wolf should move vertically within column 2"
+
+    def test_dead_ally_removed_from_player_team(self):
+        """Test that defeated allies are removed from player's permanent team."""
+        from gameplay import remove_dead_units
+
+        player = Player(10, 10)
+
+        # Create an ally with low HP
+        ally = create_test_creature(name="Ally", health=0, max_health=10)  # Already dead
+
+        # Add ally to player's permanent team
+        player.creatures = [None] * 9
+        player.creatures[0] = ally
+
+        # Set up encounter with the dead ally
+        enemy = create_test_creature(name="Enemy")
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[enemy])
+        encounter.combat_log = []
+
+        # Put ally in player_team (simulating battle)
+        encounter.player_team = [None] * 9
+        encounter.player_team[0] = ally
+        encounter.player_team[4] = player
+
+        # Set up enemy team
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = enemy
+
+        # Remove dead units (is_player_turn=False means checking player team)
+        remove_dead_units(encounter, is_player_turn=False, player=player)
+
+        # Ally should be removed from both encounter and player's permanent team
+        assert encounter.player_team[0] is None, "Dead ally should be removed from encounter"
+        assert player.creatures[0] is None, "Dead ally should be removed from player.creatures"
+
 
 class TestConvertAction:
     """Tests for the convert action."""
@@ -951,6 +1038,30 @@ class TestEncounterGridSystem:
         assert result.active_encounter.player_team[4] == player  # Player in middle
         assert ally1 in result.active_encounter.player_team
         assert ally2 in result.active_encounter.player_team
+
+    def test_repositioned_player_not_duplicated(self):
+        """Test that player repositioned in team arrangement is not duplicated."""
+        from gameplay import initialize_encounter
+
+        player = Player(10, 10)
+        ally = create_test_creature(name="Ally")
+
+        # Simulate player repositioned to slot 0 (via team arrangement)
+        player.team_position = 0  # Player moved to slot 0
+        player.creatures[1] = ally
+
+        creature = create_test_creature()
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[creature])
+
+        initialize_encounter(encounter, player)
+
+        # Count how many times player appears
+        player_count = sum(1 for u in encounter.player_team if u is player)
+        assert player_count == 1, f"Player should appear exactly once, found {player_count}"
+
+        # Player should be at position 0 (their team_position), not center
+        assert encounter.player_team[0] is player
+        assert encounter.player_team[4] is not player
 
     def test_attack_at_different_grid_positions(self):
         """Test that attacks work at different grid positions."""
