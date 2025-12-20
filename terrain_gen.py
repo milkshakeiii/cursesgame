@@ -87,47 +87,52 @@ def maze_to_grid_walls(
     """
     walls: Set[Tuple[int, int]] = set()
 
+    # First, draw the complete wall grid framework (all internal wall lines)
+    # Vertical wall lines at x positions between cells
+    for mx in range(maze_size + 1):
+        wall_x = mx * (cell_width + 1)
+        # Draw full vertical line
+        for y in range(maze_size * (cell_height + 1) + 1):
+            walls.add((wall_x, y))
+
+    # Horizontal wall lines at y positions between cells
+    for my in range(maze_size + 1):
+        wall_y = my * (cell_height + 1)
+        # Draw full horizontal line
+        for x in range(maze_size * (cell_width + 1) + 1):
+            walls.add((x, wall_y))
+
+    # Now carve out passages where the maze has openings
     for (mx, my), cell in maze.items():
         # Calculate grid position of this cell's top-left interior corner
-        # +1 to account for border, then mx * (cell_width + 1) for wall between cells
         base_x = 1 + mx * (cell_width + 1)
         base_y = 1 + my * (cell_height + 1)
 
-        # North wall (horizontal line above cell)
-        if cell.north:
+        # Remove north wall segment if passage exists
+        if not cell.north:
             wall_y = base_y - 1
             for dx in range(cell_width):
-                walls.add((base_x + dx, wall_y))
+                walls.discard((base_x + dx, wall_y))
 
-        # West wall (vertical line left of cell)
-        if cell.west:
-            wall_x = base_x - 1
-            for dy in range(cell_height):
-                walls.add((wall_x, base_y + dy))
-
-        # South wall - only for bottom row of maze
-        if my == maze_size - 1 and cell.south:
+        # Remove south wall segment if passage exists
+        if not cell.south:
             wall_y = base_y + cell_height
             for dx in range(cell_width):
-                walls.add((base_x + dx, wall_y))
+                walls.discard((base_x + dx, wall_y))
 
-        # East wall - only for rightmost column of maze
-        if mx == maze_size - 1 and cell.east:
+        # Remove west wall segment if passage exists
+        if not cell.west:
+            wall_x = base_x - 1
+            for dy in range(cell_height):
+                walls.discard((wall_x, base_y + dy))
+
+        # Remove east wall segment if passage exists
+        if not cell.east:
             wall_x = base_x + cell_width
             for dy in range(cell_height):
-                walls.add((wall_x, base_y + dy))
+                walls.discard((wall_x, base_y + dy))
 
-        # Corner pieces where walls meet
-        if cell.north and cell.west:
-            walls.add((base_x - 1, base_y - 1))
-        if cell.north and mx == maze_size - 1 and cell.east:
-            walls.add((base_x + cell_width, base_y - 1))
-        if my == maze_size - 1 and cell.south and cell.west:
-            walls.add((base_x - 1, base_y + cell_height))
-        if my == maze_size - 1 and mx == maze_size - 1 and cell.south and cell.east:
-            walls.add((base_x + cell_width, base_y + cell_height))
-
-    # Filter to only include walls within grid bounds (excluding border)
+    # Filter to only include walls within grid bounds (excluding outer border)
     return {(x, y) for x, y in walls if 1 <= x < grid_width - 1 and 1 <= y < grid_height - 1}
 
 
