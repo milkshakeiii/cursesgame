@@ -33,6 +33,8 @@ from game_data import (
 from gameplay import advance_step, generate_map
 from terrain_gen import MazeCell, generate_maze
 from pygame_screens import EncounterScreen, EncounterStartScreen, MainMenu, MapView, EncounterMode
+from creatures import spawn_creature
+from experience import get_base_battles_for_tier, get_battles_for_tier, check_tier_upgrade, get_max_tier
 
 
 def get_player(gamestate: GameState) -> Player:
@@ -1381,3 +1383,85 @@ class TestMazeGeneration:
         # Right column should have east walls
         for y in range(n):
             assert maze[(n - 1, y)].east is True
+
+
+class TestTierProgression:
+    """Tests for the tier progression system."""
+
+    def test_tier_thresholds_from_tier_bonuses(self):
+        """Test that tier thresholds come from explicit battles field."""
+        lion = spawn_creature('Lion')
+
+        # Lion should have tiers 1, 2, 3 defined
+        assert get_base_battles_for_tier(lion, 1) == 5
+        assert get_base_battles_for_tier(lion, 2) == 10
+        assert get_base_battles_for_tier(lion, 3) == 15
+        assert get_base_battles_for_tier(lion, 4) is None  # Not defined
+
+    def test_int_reduces_tier_thresholds(self):
+        """Test that INT reduces tier thresholds."""
+        lion = spawn_creature('Lion')
+
+        # With INT=0, thresholds are base values
+        assert get_battles_for_tier(lion, 1, hero_int=0) == 5
+        assert get_battles_for_tier(lion, 2, hero_int=0) == 10
+        assert get_battles_for_tier(lion, 3, hero_int=0) == 15
+
+        # With INT=15, thresholds reduced by 3
+        assert get_battles_for_tier(lion, 1, hero_int=15) == 2
+        assert get_battles_for_tier(lion, 2, hero_int=15) == 7
+        assert get_battles_for_tier(lion, 3, hero_int=15) == 12
+
+    def test_tier_capped_at_max_defined(self):
+        """Test that creatures cannot tier up beyond max defined tier."""
+        lion = spawn_creature('Lion')
+        assert get_max_tier(lion) == 3
+
+        # Give lion enough battles for tier 4 if it existed
+        lion.battles_completed = 50
+
+        # Should upgrade to tier 3 but no further
+        while check_tier_upgrade(lion, hero_int=0):
+            pass
+        assert lion.tier == 3
+
+    def test_converted_unit_gets_battles_set(self):
+        """Test that converted units get battles_completed set to tier threshold."""
+        lion = spawn_creature('Lion')
+        lion.set_tier(2)  # Simulate enemy spawned at tier 2
+
+        # Before conversion fix, battles would be 0
+        assert lion.battles_completed == 0
+
+        # Apply conversion fix (same logic as in gameplay.py)
+        if lion.tier > 0:
+            base_battles = get_base_battles_for_tier(lion, lion.tier)
+            if base_battles is not None:
+                lion.battles_completed = base_battles
+
+        # After conversion, battles should match tier 2 threshold
+        assert lion.battles_completed == 10
+
+    def test_converted_unit_can_tier_up_with_int(self):
+        """Test that converted unit with high INT can tier up quickly."""
+        lion = spawn_creature('Lion')
+        lion.set_tier(2)
+
+        # Apply conversion fix
+        base_battles = get_base_battles_for_tier(lion, lion.tier)
+        lion.battles_completed = base_battles  # 10 battles
+
+        # With INT=15, tier 3 threshold is 12
+        assert get_battles_for_tier(lion, 3, hero_int=15) == 12
+
+        # After 1 battle (11 total), not at tier 3 yet
+        lion.battles_completed += 1
+        upgraded = check_tier_upgrade(lion, hero_int=15)
+        assert not upgraded
+        assert lion.tier == 2
+
+        # After 2 battles (12 total), should upgrade
+        lion.battles_completed += 1
+        upgraded = check_tier_upgrade(lion, hero_int=15)
+        assert upgraded
+        assert lion.tier == 3

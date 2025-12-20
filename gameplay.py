@@ -31,7 +31,7 @@ from abilities import (
     get_effective_attack_damage,
     calculate_pack_hunter_bonus,
 )
-from experience import end_battle_experience, award_floor_stats
+from experience import end_battle_experience, award_floor_stats, get_base_battles_for_tier
 
 
 def add_combat_log(encounter: Encounter, message: str) -> None:
@@ -719,6 +719,14 @@ def resolve_team_convert(
                 # Check if fully converted
                 if target.conversion_progress >= target.max_health:
                     add_combat_log(encounter, f"{target_name} joins your team!")
+
+                    # Set battles_completed to match current tier's base threshold
+                    # This way converted units don't need to "catch up" on battles
+                    if target.tier > 0:
+                        base_battles = get_base_battles_for_tier(target, target.tier)
+                        if base_battles is not None:
+                            target.battles_completed = base_battles
+
                     # Add to pending recruits
                     if gamestate.pending_recruits is None:
                         gamestate.pending_recruits = []
