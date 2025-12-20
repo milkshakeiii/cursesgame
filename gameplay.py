@@ -827,7 +827,7 @@ def remove_dead_units(
                         for i, creature in enumerate(player.creatures):
                             if creature is unit:
                                 player.creatures[i] = None
-                                break
+                                # Don't break - need to clear all positions for 2x2 units
             remove_unit_from_grid(enemy_team, unit, idx)
 
     return removed

@@ -872,6 +872,55 @@ class TestAttackAction:
         assert encounter.player_team[0] is None, "Dead ally should be removed from encounter"
         assert player.creatures[0] is None, "Dead ally should be removed from player.creatures"
 
+    def test_dead_2x2_ally_removed_from_all_positions(self):
+        """Test that defeated 2x2 allies are removed from all 4 positions in player's team."""
+        from gameplay import remove_dead_units
+
+        player = Player(10, 10)
+
+        # Create a 2x2 ally with 0 HP (already dead)
+        ally = create_test_creature(name="BigAlly", health=0, max_health=10)
+        ally.size = "2x2"
+
+        # Add 2x2 ally to player's permanent team (occupies 4 positions: 0, 1, 3, 4)
+        player.creatures = [None] * 9
+        player.creatures[0] = ally  # top-left
+        player.creatures[1] = ally  # top-right
+        player.creatures[3] = ally  # bottom-left
+        player.creatures[4] = ally  # bottom-right
+
+        # Set up encounter with the dead ally
+        enemy = create_test_creature(name="Enemy")
+        encounter = Encounter(10, 10, symbol="#", color=(255, 255, 255), creatures=[enemy])
+        encounter.combat_log = []
+
+        # Put 2x2 ally in player_team (simulating battle)
+        encounter.player_team = [None] * 9
+        encounter.player_team[0] = ally
+        encounter.player_team[1] = ally
+        encounter.player_team[3] = ally
+        encounter.player_team[4] = ally
+        player.team_position = 8  # Player in corner
+
+        # Set up enemy team
+        encounter.enemy_team = [None] * 9
+        encounter.enemy_team[4] = enemy
+
+        # Remove dead units (is_player_turn=False means checking player team)
+        remove_dead_units(encounter, is_player_turn=False, player=player)
+
+        # 2x2 ally should be removed from all positions in encounter
+        assert encounter.player_team[0] is None, "Dead 2x2 ally should be removed from encounter pos 0"
+        assert encounter.player_team[1] is None, "Dead 2x2 ally should be removed from encounter pos 1"
+        assert encounter.player_team[3] is None, "Dead 2x2 ally should be removed from encounter pos 3"
+        assert encounter.player_team[4] is None, "Dead 2x2 ally should be removed from encounter pos 4"
+
+        # 2x2 ally should be removed from all positions in player.creatures
+        assert player.creatures[0] is None, "Dead 2x2 ally should be removed from player.creatures pos 0"
+        assert player.creatures[1] is None, "Dead 2x2 ally should be removed from player.creatures pos 1"
+        assert player.creatures[3] is None, "Dead 2x2 ally should be removed from player.creatures pos 3"
+        assert player.creatures[4] is None, "Dead 2x2 ally should be removed from player.creatures pos 4"
+
 
 class TestConvertAction:
     """Tests for the convert action."""
