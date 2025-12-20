@@ -88,18 +88,21 @@ def maze_to_grid_walls(
     walls: Set[Tuple[int, int]] = set()
 
     # First, draw the complete wall grid framework (all internal wall lines)
-    # Vertical wall lines at x positions between cells
-    for mx in range(maze_size + 1):
+    # Internal walls are between cells, so (maze_size - 1) vertical and horizontal lines
+
+    # Vertical wall lines between cells
+    for mx in range(1, maze_size):
+        # Wall x position: after mx cells and (mx-1) previous walls, plus the border offset
         wall_x = mx * (cell_width + 1)
-        # Draw full vertical line
-        for y in range(maze_size * (cell_height + 1) + 1):
+        # Draw full vertical line through entire interior height
+        for y in range(1, grid_height - 1):
             walls.add((wall_x, y))
 
-    # Horizontal wall lines at y positions between cells
-    for my in range(maze_size + 1):
+    # Horizontal wall lines between cells
+    for my in range(1, maze_size):
         wall_y = my * (cell_height + 1)
-        # Draw full horizontal line
-        for x in range(maze_size * (cell_width + 1) + 1):
+        # Draw full horizontal line through entire interior width
+        for x in range(1, grid_width - 1):
             walls.add((x, wall_y))
 
     # Now carve out passages where the maze has openings

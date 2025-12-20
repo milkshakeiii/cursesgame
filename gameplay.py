@@ -1121,12 +1121,12 @@ def generate_map(
 
     # Calculate cell dimensions to fit grid interior (excluding 1-tile border)
     # Interior is (GRID_WIDTH - 2) x (GRID_HEIGHT - 2) = 48 x 23
-    # For n cells with n+1 walls (1 tile each): n * cell_size + (n + 1) <= interior
-    # cell_size = (interior - n - 1) // n
+    # For n cells with (n-1) internal walls: n * cell_size + (n - 1) <= interior
+    # cell_size = (interior - n + 1) // n
     interior_width = GRID_WIDTH - 2  # 48
     interior_height = GRID_HEIGHT - 2  # 23
-    cell_width = (interior_width - maze_size - 1) // maze_size
-    cell_height = (interior_height - maze_size - 1) // maze_size
+    cell_width = (interior_width - maze_size + 1) // maze_size
+    cell_height = (interior_height - maze_size + 1) // maze_size
 
     # Generate maze and get wall positions
     maze = generate_maze(seed, maze_size)
