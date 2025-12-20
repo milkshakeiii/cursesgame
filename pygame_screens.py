@@ -1021,20 +1021,20 @@ class BattleResultsScreen(Screen):
             self.draw_text(
                 screen,
                 "Press ENTER to place recruits",
-                width // 2, footer_y, (200, 200, 100), self.small_font, centered=True
+                center_x, footer_y, (200, 200, 100), self.small_font, centered=True
             )
         else:
             self.draw_text(
                 screen,
                 "Press ENTER to continue",
-                width // 2, footer_y, (150, 150, 150), self.small_font, centered=True
+                center_x, footer_y, (150, 150, 150), self.small_font, centered=True
             )
 
         # Scroll indicators
         if self.scroll_offset > 0:
-            self.draw_text(screen, "^ Scroll Up ^", width // 2, 55, (100, 100, 100), self.small_font, centered=True)
+            self.draw_text(screen, "^ Scroll Up ^", center_x, 55, (100, 100, 100), self.small_font, centered=True)
         if self.scroll_offset < self.max_scroll:
-            self.draw_text(screen, "v Scroll Down v", width // 2, height - 60, (100, 100, 100), self.small_font, centered=True)
+            self.draw_text(screen, "v Scroll Down v", center_x, height - 60, (100, 100, 100), self.small_font, centered=True)
 
 
 class StatAllocationScreen(Screen):
