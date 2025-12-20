@@ -149,10 +149,8 @@ class BiomeOrderScreen(Screen):
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
 
-        # Draw left panel
-        self.draw_left_panel(screen, game)
-
-        center_x = self.get_map_area_center_x(screen, game)
+        # No left panel on journey preview
+        center_x = screen.get_width() // 2
         self.draw_text(screen, "UPCOMING JOURNEY", center_x, 50, (255, 255, 0), self.font, centered=True)
 
         if game.gamestate.biome_order:
@@ -756,12 +754,9 @@ class MainMenu(Screen):
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
 
-        # Draw left panel
-        self.draw_left_panel(screen, game)
-
-        # Draw Title
+        # Draw Title (no left panel on main menu)
         title = "MAIN MENU"
-        center_x = self.get_map_area_center_x(screen, game)
+        center_x = screen.get_width() // 2
         self.draw_text(screen, title, center_x, screen.get_height() // 4, (255, 255, 0), self.font, centered=True)
 
         # Draw Options
