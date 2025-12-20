@@ -284,14 +284,12 @@ class TeamArrangementScreen(Screen):
                                 (new_tl_row + 1) * 3 + new_tl_col + 1,
                             ]
 
-                            # Check player overlap
-                            if player.team_position in new_positions:
-                                self.swap_source = None
-                                return True
-
                             # Positions being vacated and newly occupied
                             vacated = [p for p in old_positions if p not in new_positions]
                             newly_occupied = [p for p in new_positions if p not in old_positions]
+
+                            # Check if player needs to be displaced
+                            player_displaced = player.team_position in newly_occupied
 
                             # Collect displaced units from newly occupied positions
                             displaced = []
@@ -309,9 +307,16 @@ class TeamArrangementScreen(Screen):
                                 player.creatures[pos] = unit1
 
                             # Place displaced units in vacated positions
-                            for i, unit in enumerate(displaced):
-                                if i < len(vacated):
-                                    player.creatures[vacated[i]] = unit
+                            vacated_idx = 0
+                            if player_displaced:
+                                # Move player to first vacated position
+                                player.team_position = vacated[vacated_idx]
+                                vacated_idx += 1
+
+                            for unit in displaced:
+                                if vacated_idx < len(vacated):
+                                    player.creatures[vacated[vacated_idx]] = unit
+                                    vacated_idx += 1
                                 else:
                                     pending.append(unit)
 
