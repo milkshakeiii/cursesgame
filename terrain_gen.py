@@ -90,19 +90,23 @@ def maze_to_grid_walls(
     # First, draw the complete wall grid framework (all internal wall lines)
     # Internal walls are between cells, so (maze_size - 1) vertical and horizontal lines
 
+    # Calculate actual maze extent (may be less than grid interior due to integer division)
+    maze_extent_x = maze_size * (cell_width + 1)  # Rightmost interior column + 1
+    maze_extent_y = maze_size * (cell_height + 1)  # Bottommost interior row + 1
+
     # Vertical wall lines between cells
     for mx in range(1, maze_size):
         # Wall x position: after mx cells and (mx-1) previous walls, plus the border offset
         wall_x = mx * (cell_width + 1)
-        # Draw full vertical line through entire interior height
-        for y in range(1, grid_height - 1):
+        # Draw full vertical line through maze interior height only
+        for y in range(1, maze_extent_y):
             walls.add((wall_x, y))
 
     # Horizontal wall lines between cells
     for my in range(1, maze_size):
         wall_y = my * (cell_height + 1)
-        # Draw full horizontal line through entire interior width
-        for x in range(1, grid_width - 1):
+        # Draw full horizontal line through maze interior width only
+        for x in range(1, maze_extent_x):
             walls.add((x, wall_y))
 
     # Now carve out passages where the maze has openings
