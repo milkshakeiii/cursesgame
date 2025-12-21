@@ -105,9 +105,18 @@ def maze_to_grid_walls(
     # Horizontal wall lines between cells
     for my in range(1, maze_size):
         wall_y = my * (cell_height + 1)
-        # Draw full horizontal line through maze interior width only
+        # Draw horizontal line through maze interior width only
         for x in range(1, maze_extent_x):
             walls.add((x, wall_y))
+
+    # Fill extra space outside the maze with walls (due to integer division)
+    # This makes the unused space impassable
+    for x in range(maze_extent_x, grid_width - 1):
+        for y in range(1, grid_height - 1):
+            walls.add((x, y))
+    for y in range(maze_extent_y, grid_height - 1):
+        for x in range(1, grid_width - 1):
+            walls.add((x, y))
 
     # Now carve out passages where the maze has openings
     for (mx, my), cell in maze.items():

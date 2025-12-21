@@ -5,7 +5,7 @@ from enum import Enum
 
 from game_data import GRID_HEIGHT, GRID_WIDTH, LEFT_PANEL_WIDTH, Player, Creature, Terrain
 from gameplay import advance_step, select_best_attack, calculate_expected_result, BIOME_DATA
-from combat import get_hero_attacks
+from combat import get_hero_attacks, calculate_hero_combat_stats
 
 if TYPE_CHECKING:
     import game as game_module
@@ -990,10 +990,10 @@ class BattleResultsScreen(Screen):
                 self.battle_results = None
                 self.recruits = []
                 return True
-            elif event.key == pygame.K_UP:
+            elif event.key in (pygame.K_UP, pygame.K_i, pygame.K_KP8):
                 self.scroll_offset = max(0, self.scroll_offset - 30)
                 return True
-            elif event.key == pygame.K_DOWN:
+            elif event.key in (pygame.K_DOWN, pygame.K_COMMA, pygame.K_KP2):
                 self.scroll_offset = min(self.max_scroll, self.scroll_offset + 30)
                 return True
         return False
@@ -1009,30 +1009,34 @@ class BattleResultsScreen(Screen):
         center_x = self.get_map_area_center_x(screen, game)
         height = screen.get_height()
 
+        # Reserve space for footer area (scroll hint + action text)
+        footer_height = 50
+        content_max_y = height - footer_height
+
         # Title
         self.draw_text(screen, "BATTLE COMPLETE!", center_x, 30, (100, 255, 100), self.font, centered=True)
 
         if not self.battle_results:
             self.draw_text(screen, "No battle data available", center_x, height // 2, (150, 150, 150), self.small_font, centered=True)
-            self.draw_text(screen, "Press ENTER to continue", center_x, height - 40, (150, 150, 150), self.small_font, centered=True)
+            self.draw_text(screen, "Press ENTER to continue", center_x, height - 25, (150, 150, 150), self.small_font, centered=True)
             return
 
         y = 70 - self.scroll_offset
         left_margin = panel_width + 40
 
         # === EXPERIENCE GAINS ===
-        if y > 0 and y < height:
+        if y > 0 and y < content_max_y:
             self.draw_text(screen, "EXPERIENCE GAINED", left_margin, y, (255, 220, 100), self.medium_font)
         y += 28
 
         participants = self.battle_results.get("participants", [])
         if not participants:
-            if y > 0 and y < height:
+            if y > 0 and y < content_max_y:
                 self.draw_text(screen, "  No creatures participated", left_margin, y, (150, 150, 150), self.small_font)
             y += 22
         else:
             for p in participants:
-                if y > 0 and y < height:
+                if y > 0 and y < content_max_y:
                     name = p["name"]
                     before = p["battles_before"]
                     after = p["battles_after"]
@@ -1047,12 +1051,12 @@ class BattleResultsScreen(Screen):
 
         # === TIER UPS ===
         tier_ups = self.battle_results.get("tier_ups", [])
-        if y > 0 and y < height:
+        if y > 0 and y < content_max_y:
             self.draw_text(screen, "TIER UPGRADES", left_margin, y, (255, 180, 50), self.medium_font)
         y += 28
 
         if not tier_ups:
-            if y > 0 and y < height:
+            if y > 0 and y < content_max_y:
                 self.draw_text(screen, "  No tier upgrades this battle", left_margin, y, (150, 150, 150), self.small_font)
             y += 22
         else:
@@ -1062,7 +1066,7 @@ class BattleResultsScreen(Screen):
                 new_tier = tier_up["new_tier"]
                 bonuses = tier_up.get("bonuses", [])
 
-                if y > 0 and y < height:
+                if y > 0 and y < content_max_y:
                     self.draw_text(
                         screen,
                         f"  {name}: Tier {old_tier} -> Tier {new_tier}!",
@@ -1071,7 +1075,7 @@ class BattleResultsScreen(Screen):
                 y += 20
 
                 for bonus in bonuses:
-                    if y > 0 and y < height:
+                    if y > 0 and y < content_max_y:
                         self.draw_text(
                             screen,
                             f"    + {bonus}",
@@ -1084,12 +1088,12 @@ class BattleResultsScreen(Screen):
         y += 15
 
         # === RECRUITS ===
-        if y > 0 and y < height:
+        if y > 0 and y < content_max_y:
             self.draw_text(screen, "RECRUITED", left_margin, y, (100, 200, 255), self.medium_font)
         y += 28
 
         if not self.recruits:
-            if y > 0 and y < height:
+            if y > 0 and y < content_max_y:
                 self.draw_text(screen, "  No creatures converted", left_margin, y, (150, 150, 150), self.small_font)
             y += 22
         else:
@@ -1098,7 +1102,7 @@ class BattleResultsScreen(Screen):
                 hp = getattr(creature, "max_health", 0)
                 efficacy = getattr(creature, "conversion_efficacy", 50)
 
-                if y > 0 and y < height:
+                if y > 0 and y < content_max_y:
                     self.draw_text(
                         screen,
                         f"  {name} - HP: {hp}, Efficacy: {efficacy}%",
@@ -1109,7 +1113,7 @@ class BattleResultsScreen(Screen):
                 # Show attacks
                 attacks = getattr(creature, "attacks", [])
                 for attack in attacks[:2]:  # Limit to 2
-                    if y > 0 and y < height:
+                    if y > 0 and y < content_max_y:
                         atk_text = f"    {attack.attack_type}: {attack.damage}"
                         if attack.abilities:
                             atk_text += f" [{', '.join(attack.abilities[:2])}]"
@@ -1118,26 +1122,22 @@ class BattleResultsScreen(Screen):
 
                 y += 8
 
-        # Footer
-        footer_y = height - 40
-        if self.recruits:
-            self.draw_text(
-                screen,
-                "Press ENTER to place recruits",
-                center_x, footer_y, (200, 200, 100), self.small_font, centered=True
-            )
-        else:
-            self.draw_text(
-                screen,
-                "Press ENTER to continue",
-                center_x, footer_y, (150, 150, 150), self.small_font, centered=True
-            )
-
-        # Scroll indicators
+        # Footer area (fixed at bottom, single row)
         if self.scroll_offset > 0:
             self.draw_text(screen, "^ Scroll Up ^", center_x, 55, (100, 100, 100), self.small_font, centered=True)
+
+        # Build footer text
+        footer_parts = []
         if self.scroll_offset < self.max_scroll:
-            self.draw_text(screen, "v Scroll Down v", center_x, height - 60, (100, 100, 100), self.small_font, centered=True)
+            footer_parts.append("v Scroll Down v")
+        if self.recruits:
+            footer_parts.append("ENTER: Place recruits")
+        else:
+            footer_parts.append("ENTER: Continue")
+
+        footer_text = "  |  ".join(footer_parts)
+        footer_color = (200, 200, 100) if self.recruits else (150, 150, 150)
+        self.draw_text(screen, footer_text, center_x, height - 25, footer_color, self.small_font, centered=True)
 
 
 class StatAllocationScreen(Screen):
@@ -1675,11 +1675,17 @@ class EncounterScreen(Screen):
             hp_color = (0, 255, 0) if selected_entity.current_health > 30 else (255, 100, 100)
             self.draw_text(screen, f"HP: {selected_entity.current_health}/{selected_entity.max_health}", info_x, 75, hp_color, self.font)
 
-            # Defense stats
+            # Defense stats - use calculated stats for Player
             y_offset = 93
-            defense = getattr(selected_entity, "defense", getattr(selected_entity, "base_defense", 0))
-            dodge = getattr(selected_entity, "dodge", getattr(selected_entity, "base_dodge", 0))
-            resistance = getattr(selected_entity, "resistance", getattr(selected_entity, "base_resistance", 0))
+            if isinstance(selected_entity, Player):
+                hero_stats = calculate_hero_combat_stats(selected_entity)
+                defense = hero_stats["defense"]
+                dodge = hero_stats["dodge"]
+                resistance = hero_stats["resistance"]
+            else:
+                defense = getattr(selected_entity, "defense", getattr(selected_entity, "base_defense", 0))
+                dodge = getattr(selected_entity, "dodge", getattr(selected_entity, "base_dodge", 0))
+                resistance = getattr(selected_entity, "resistance", getattr(selected_entity, "base_resistance", 0))
             self.draw_text(screen, f"DEF:{defense} DOD:{dodge} RES:{resistance}", info_x, y_offset, (150, 200, 150), self.small_font)
             y_offset += 16
 
@@ -1690,8 +1696,11 @@ class EncounterScreen(Screen):
                 self.draw_text(screen, f"Convert: {progress}/{max_conv}", info_x, y_offset, (150, 150, 255), self.small_font)
                 y_offset += 16
 
-            # Attacks
-            attacks = getattr(selected_entity, "attacks", [])
+            # Attacks - use get_hero_attacks for Player
+            if isinstance(selected_entity, Player):
+                attacks = get_hero_attacks(selected_entity)
+            else:
+                attacks = getattr(selected_entity, "attacks", [])
             if attacks:
                 self.draw_text(screen, "Attacks:", info_x, y_offset, (255, 200, 100), self.small_font)
                 y_offset += 14
