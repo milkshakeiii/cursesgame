@@ -914,8 +914,11 @@ def check_encounter_end(gamestate: GameState) -> bool:
 
         return True
 
-    # Check if all player units are gone (game over)
-    if all(ally is None for ally in (encounter.player_team or [])):
+    # Check if the player (hero) is gone (game over)
+    player_alive = any(
+        isinstance(ally, Player) for ally in (encounter.player_team or []) if ally is not None
+    )
+    if not player_alive:
         gamestate.status = "lost"
         gamestate.active_encounter = None
         gamestate.last_battle_results = None

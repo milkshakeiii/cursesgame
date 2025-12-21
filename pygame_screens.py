@@ -901,11 +901,8 @@ class WinScreen(Screen):
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
 
-        # Draw left panel
-        self.draw_left_panel(screen, game)
-        self.draw_left_panel_content(screen, game)
-
-        center_x = self.get_map_area_center_x(screen, game)
+        # Center on full screen (no left panel on victory)
+        center_x = screen.get_width() // 2
         self.draw_text(screen, "VICTORY!", center_x, screen.get_height() // 3, (0, 255, 0), self.font, centered=True)
         self.draw_text(screen, "You have defeated the Dragon King!", center_x, screen.get_height() // 2, (200, 255, 200), self.small_font, centered=True)
         self.draw_text(screen, "Press ENTER to return to menu", center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
@@ -927,11 +924,8 @@ class GameOverScreen(Screen):
     def render(self, screen: pygame.Surface, game: "game_module.Game") -> None:
         screen.fill((0, 0, 0))
 
-        # Draw left panel
-        self.draw_left_panel(screen, game)
-        self.draw_left_panel_content(screen, game)
-
-        center_x = self.get_map_area_center_x(screen, game)
+        # Center on full screen (no left panel on game over)
+        center_x = screen.get_width() // 2
         self.draw_text(screen, "GAME OVER", center_x, screen.get_height() // 3, (255, 0, 0), self.font, centered=True)
         self.draw_text(screen, "Your journey ends here.", center_x, screen.get_height() // 2, (255, 200, 200), self.small_font, centered=True)
         self.draw_text(screen, "Press ENTER to return to menu", center_x, screen.get_height() - 60, (150, 150, 150), self.small_font, centered=True)
