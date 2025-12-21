@@ -1889,10 +1889,53 @@ class EncounterScreen(Screen):
                         px = start_x + (min_col + dx + x_offset) * tile_w
                         py = start_y + (min_row + dy) * tile_h
                         screen.blit(sprite, (px, py))
+
+                    # Draw damage overlay for 2x2 unit (covers all 4 tiles as one)
+                    self._draw_damage_overlay(
+                        screen, entity,
+                        start_x + (min_col + x_offset) * tile_w,
+                        start_y + min_row * tile_h,
+                        tile_w * 2, tile_h * 2
+                    )
             else:
                 # Normal 1x1 rendering
                 sprite = game.sprite_manager.get_sprite(entity.symbol, entity.color)
                 if scale > 1:
                     scaled = pygame.transform.scale(sprite, (tile_w, tile_h))
                     sprite = scaled.convert_alpha()
-                screen.blit(sprite, (start_x + grid_x * tile_w, start_y + grid_y * tile_h))
+                px = start_x + grid_x * tile_w
+                py = start_y + grid_y * tile_h
+                screen.blit(sprite, (px, py))
+
+                # Draw damage overlay for 1x1 unit
+                self._draw_damage_overlay(screen, entity, px, py, tile_w, tile_h)
+
+    def _draw_damage_overlay(self, screen: pygame.Surface, entity, x: int, y: int, width: int, height: int):
+        """Draw a red overlay on a unit based on damage taken.
+
+        The overlay fills from bottom to top based on the percentage of health lost.
+        A unit at 50% health has the bottom 50% covered in red.
+        """
+        max_health = getattr(entity, "max_health", 0)
+        current_health = getattr(entity, "current_health", 0)
+
+        if max_health <= 0:
+            return
+
+        # Calculate damage percentage (0 = full health, 1 = dead)
+        damage_percent = 1.0 - (current_health / max_health)
+        if damage_percent <= 0:
+            return
+
+        # Calculate overlay height (fills from bottom)
+        overlay_height = int(height * damage_percent)
+        if overlay_height <= 0:
+            return
+
+        # Create semi-transparent red overlay
+        overlay = pygame.Surface((width, overlay_height), pygame.SRCALPHA)
+        overlay.fill((255, 0, 0, 100))  # Red with ~40% opacity
+
+        # Position at bottom of the unit
+        overlay_y = y + (height - overlay_height)
+        screen.blit(overlay, (x, overlay_y))
