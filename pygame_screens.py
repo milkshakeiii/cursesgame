@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional, Union
 from enum import Enum
 
-from game_data import GRID_HEIGHT, GRID_WIDTH, LEFT_PANEL_WIDTH, Player, Creature
-from gameplay import advance_step, select_best_attack, calculate_expected_result
+from game_data import GRID_HEIGHT, GRID_WIDTH, LEFT_PANEL_WIDTH, Player, Creature, Terrain
+from gameplay import advance_step, select_best_attack, calculate_expected_result, BIOME_DATA
 from combat import get_hero_attacks
 
 if TYPE_CHECKING:
@@ -77,6 +77,116 @@ class Screen(ABC):
         pygame.draw.rect(screen, (20, 20, 30), (0, 0, panel_width, screen.get_height()))
         # Border line
         pygame.draw.line(screen, (60, 60, 80), (panel_width - 1, 0), (panel_width - 1, screen.get_height()))
+
+    def draw_left_panel_content(self, screen: pygame.Surface, game: "game_module.Game") -> None:
+        """Draw the full left panel UI with player info, team, stats, and biome."""
+        # Find player
+        player = None
+        for p in game.gamestate.placeables or []:
+            if isinstance(p, Player):
+                player = p
+                break
+        if player is None:
+            return
+
+        # Fonts
+        header_font = pygame.font.SysFont("monospace", 14, bold=True)
+        normal_font = pygame.font.SysFont("monospace", 13)
+        small_font = pygame.font.SysFont("monospace", 11)
+
+        y = 10
+
+        # === SECTION 0: STAGE/LEVEL ===
+        stage_text = f"Stage {game.gamestate.current_stage}/{game.gamestate.max_stages}"
+        self.draw_text(screen, stage_text, 8, y, (255, 255, 255), header_font)
+        y += 20
+
+        # === SECTION 1: PLAYER HEALTH ===
+        hp_pct = player.current_health / player.max_health if player.max_health > 0 else 0
+        if hp_pct > 0.5:
+            hp_color = (100, 255, 100)
+        elif hp_pct > 0.25:
+            hp_color = (255, 255, 100)
+        else:
+            hp_color = (255, 100, 100)
+
+        self.draw_text(screen, f"HP: {player.current_health}/{player.max_health}", 8, y, hp_color, normal_font)
+        y += 22
+
+        # === SECTION 2: TEAM OVERVIEW ===
+        self.draw_text(screen, "TEAM", 8, y, (150, 180, 220), header_font)
+        y += 16
+
+        for i in range(9):
+            if i == player.team_position:
+                entry = "@ You"
+                color = (255, 255, 255)
+            elif player.creatures[i] is None:
+                entry = "  ---"
+                color = (80, 80, 80)
+            else:
+                name = player.creatures[i].name
+                if len(name) > 12:
+                    name = name[:11] + ".."
+                entry = f"  {name}"
+                color = (180, 180, 180)
+
+            self.draw_text(screen, entry, 8, y, color, small_font)
+            y += 13
+
+        y += 8
+
+        # === SECTION 3: PLAYER STATS ===
+        self.draw_text(screen, "STATS", 8, y, (150, 180, 220), header_font)
+        y += 16
+
+        stats = [
+            (f"INT: {player.intelligence}", (100, 200, 100)),
+            (f"WIS: {player.wisdom}", (100, 150, 255)),
+            (f"CHA: {player.charisma}", (220, 100, 180)),
+            (f"BAT: {player.battle}", (220, 180, 100)),
+            (f"Wins: {getattr(player, 'battles_won', 0)}", (255, 255, 150)),
+        ]
+        for stat_text, color in stats:
+            self.draw_text(screen, stat_text, 8, y, color, small_font)
+            y += 13
+
+        y += 8
+
+        # === SECTION 4: BIOME & TERRAIN ===
+        stage = game.gamestate.current_stage
+        biome_index = min((stage - 1) // 5, 3)
+        biome_order = game.gamestate.biome_order or ["forest", "plains", "snow", "underground"]
+        current_biome_key = biome_order[biome_index] if biome_index < len(biome_order) else "forest"
+        biome_info = BIOME_DATA.get(current_biome_key, {})
+        biome_name = biome_info.get("name", current_biome_key.replace("_", " ").title())
+        tiles = biome_info.get("tiles", {})
+
+        self.draw_text(screen, biome_name, 8, y, (200, 200, 120), header_font)
+        y += 18
+
+        # Collect terrain types from current floor
+        terrain_types = set()
+        for placeable in game.gamestate.placeables or []:
+            if isinstance(placeable, Terrain) and placeable.tile_type:
+                terrain_types.add(placeable.tile_type)
+
+        tile_h = game.sprite_manager.tile_height
+        tile_w = game.sprite_manager.tile_width
+
+        for terrain_type in sorted(terrain_types):
+            if terrain_type in tiles:
+                tile_def = tiles[terrain_type]
+                sprite = game.sprite_manager.get_sprite(
+                    tile_def["symbol"],
+                    tile_def["color"],
+                    tile_def.get("bg_color")
+                )
+                screen.blit(sprite, (10, y))
+
+                display_name = terrain_type.replace("_", " ").title()
+                self.draw_text(screen, display_name, 10 + tile_w + 4, y + 3, (170, 170, 170), small_font)
+                y += tile_h + 2
 
     def get_map_area_center_x(self, screen: pygame.Surface, game: "game_module.Game") -> int:
         """Get the center x coordinate of the map area (excluding left panel)."""
@@ -594,6 +704,7 @@ class TeamArrangementScreen(Screen):
 
         # Draw left panel
         self.draw_left_panel(screen, game)
+        self.draw_left_panel_content(screen, game)
 
         center_x = self.get_map_area_center_x(screen, game)
         center_y = screen.get_height() // 2
@@ -792,6 +903,7 @@ class WinScreen(Screen):
 
         # Draw left panel
         self.draw_left_panel(screen, game)
+        self.draw_left_panel_content(screen, game)
 
         center_x = self.get_map_area_center_x(screen, game)
         self.draw_text(screen, "VICTORY!", center_x, screen.get_height() // 3, (0, 255, 0), self.font, centered=True)
@@ -817,6 +929,7 @@ class GameOverScreen(Screen):
 
         # Draw left panel
         self.draw_left_panel(screen, game)
+        self.draw_left_panel_content(screen, game)
 
         center_x = self.get_map_area_center_x(screen, game)
         self.draw_text(screen, "GAME OVER", center_x, screen.get_height() // 3, (255, 0, 0), self.font, centered=True)
@@ -896,6 +1009,7 @@ class BattleResultsScreen(Screen):
 
         # Draw left panel
         self.draw_left_panel(screen, game)
+        self.draw_left_panel_content(screen, game)
 
         panel_width = self.get_panel_width_pixels(game)
         center_x = self.get_map_area_center_x(screen, game)
@@ -1098,6 +1212,7 @@ class StatAllocationScreen(Screen):
 
         # Draw left panel
         self.draw_left_panel(screen, game)
+        self.draw_left_panel_content(screen, game)
 
         height = screen.get_height()
         center_x = self.get_map_area_center_x(screen, game)
@@ -1319,6 +1434,7 @@ class MapView(Screen):
 
         # Draw left panel
         self.draw_left_panel(screen, game)
+        self.draw_left_panel_content(screen, game)
 
         # Draw all visible placeables except player first
         for placeable in game.gamestate.placeables or []:
@@ -1344,17 +1460,13 @@ class MapView(Screen):
                     placeable.bg_color,
                 )
 
-        # Draw info in left panel
-        self.draw_text(screen, f"Level: {game.gamestate.current_stage}/{game.gamestate.max_stages}", 10, 10, (255, 255, 255), self.font)
-
-        # Show walk mode indicator in left panel
+        # Show walk mode indicator at bottom of left panel
+        walk_y = screen.get_height() - 50
         if self.waiting_for_walk_dir:
-            self.draw_text(screen, "Walk: press", 10, 30, (255, 255, 0), self.font)
-            self.draw_text(screen, "direction", 10, 46, (255, 255, 0), self.font)
+            self.draw_text(screen, "Walk: press dir", 10, walk_y, (255, 255, 0), self.font)
         elif self.auto_walk_dir is not None:
-            self.draw_text(screen, "Walking...", 10, 30, (200, 200, 0), self.font)
-            self.draw_text(screen, "(any key", 10, 46, (200, 200, 0), self.font)
-            self.draw_text(screen, "to stop)", 10, 62, (200, 200, 0), self.font)
+            self.draw_text(screen, "Walking...", 10, walk_y, (200, 200, 0), self.font)
+            self.draw_text(screen, "(any key stops)", 10, walk_y + 16, (200, 200, 0), self.font)
 
 class EncounterStartScreen(Screen):
     """Screen shown when the player first encounters something."""
@@ -1375,6 +1487,7 @@ class EncounterStartScreen(Screen):
 
         # Draw left panel
         self.draw_left_panel(screen, game)
+        self.draw_left_panel_content(screen, game)
 
         center_x = self.get_map_area_center_x(screen, game)
 
@@ -1540,6 +1653,7 @@ class EncounterScreen(Screen):
 
         # Draw left panel
         self.draw_left_panel(screen, game)
+        self.draw_left_panel_content(screen, game)
         panel_width = self.get_panel_width_pixels(game)
 
         # Layout calculations - map area only (excluding left panel)

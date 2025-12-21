@@ -246,6 +246,9 @@ class Player(Placeable):
     creatures: list[Optional[Creature]] = None
     team_position: int = 4  # Player's position in the 3x3 grid (0-8, default center)
 
+    # Progress tracking
+    battles_won: int = 0  # Total battles won
+
     def __post_init__(self):
         """Initialize mutable default values."""
         if self.creatures is None:

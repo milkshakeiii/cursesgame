@@ -75,10 +75,10 @@ BIOME_DATA = {
         "name": "Snowy Mountain",
         "base_tile": "snow",
         "tiles": {
-            "snow": {"symbol": "░", "color": (230, 240, 245), "bg_color": (180, 205, 215)},
+            "snow": {"symbol": "░", "color": (190, 200, 210), "bg_color": (140, 165, 175)},
             "rocky": {"symbol": "▓", "color": (140, 150, 160), "bg_color": (90, 100, 110)},
             "trees": {"symbol": "█", "color": (40, 90, 50), "bg_color": (25, 55, 35)},
-            "wall": {"symbol": "█", "color": (160, 170, 180), "bg_color": (100, 110, 120)},
+            "wall": {"symbol": "█", "color": (100, 110, 120), "bg_color": (60, 70, 80)},
         },
         "layers": [
             {"tile_id": "rocky", "threshold": 0.6, "seed_offset": 1000, "priority": 1},
@@ -611,7 +611,11 @@ def get_attack_targets(
         )
 
     elif attack.attack_type == "magic":
-        targets = get_magic_targets(encounter, attacker_col, attacker_is_player)
+        # Magic hits the mirror column. Only return targets if the user-selected
+        # target is in the mirror column, otherwise the attack can't hit the selection.
+        mirror_col = 2 - attacker_col
+        if target_col == mirror_col:
+            targets = get_magic_targets(encounter, attacker_col, attacker_is_player)
 
     return targets
 
@@ -890,6 +894,7 @@ def check_encounter_end(gamestate: GameState) -> bool:
         battle_results = None
         if player:
             battle_results = end_battle_experience(encounter, player)
+            player.battles_won += 1
 
         # Store battle results for display
         gamestate.last_battle_results = battle_results
