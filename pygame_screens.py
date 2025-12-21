@@ -1638,9 +1638,9 @@ class EncounterScreen(Screen):
         enemy_team = game.gamestate.active_encounter.enemy_team
 
         # Draw Player Team (Offset 0)
-        self._render_team(screen, game, player_team, grid_start_x, grid_start_y, 0, grid_scale)
+        self._render_team(screen, game, player_team, grid_start_x, grid_start_y, 0, grid_scale, is_enemy=False)
         # Draw Enemy Team (Offset 3)
-        self._render_team(screen, game, enemy_team, grid_start_x, grid_start_y, 3, grid_scale)
+        self._render_team(screen, game, enemy_team, grid_start_x, grid_start_y, 3, grid_scale, is_enemy=True)
 
         # --- ACTIONS PANEL (Right Bottom) ---
         action_x = half_width + 20
@@ -1842,7 +1842,7 @@ class EncounterScreen(Screen):
                 for x in range(3, 6):
                     screen.blit(highlight_surf, (start_x + x * tile_w, start_y + y * tile_h))
 
-    def _render_team(self, screen: pygame.Surface, game: "game_module.Game", team: list, start_x: int, start_y: int, x_offset: int, scale: int = 1):
+    def _render_team(self, screen: pygame.Surface, game: "game_module.Game", team: list, start_x: int, start_y: int, x_offset: int, scale: int = 1, is_enemy: bool = False):
         if not team:
             return
 
@@ -1890,13 +1890,12 @@ class EncounterScreen(Screen):
                         py = start_y + (min_row + dy) * tile_h
                         screen.blit(sprite, (px, py))
 
-                    # Draw damage overlay for 2x2 unit (covers all 4 tiles as one)
-                    self._draw_damage_overlay(
-                        screen, entity,
-                        start_x + (min_col + x_offset) * tile_w,
-                        start_y + min_row * tile_h,
-                        tile_w * 2, tile_h * 2
-                    )
+                    # Draw overlays for 2x2 unit (covers all 4 tiles as one)
+                    overlay_x = start_x + (min_col + x_offset) * tile_w
+                    overlay_y = start_y + min_row * tile_h
+                    self._draw_damage_overlay(screen, entity, overlay_x, overlay_y, tile_w * 2, tile_h * 2)
+                    if is_enemy:
+                        self._draw_conversion_overlay(screen, entity, overlay_x, overlay_y, tile_w * 2, tile_h * 2)
             else:
                 # Normal 1x1 rendering
                 sprite = game.sprite_manager.get_sprite(entity.symbol, entity.color)
@@ -1907,8 +1906,10 @@ class EncounterScreen(Screen):
                 py = start_y + grid_y * tile_h
                 screen.blit(sprite, (px, py))
 
-                # Draw damage overlay for 1x1 unit
+                # Draw overlays for 1x1 unit
                 self._draw_damage_overlay(screen, entity, px, py, tile_w, tile_h)
+                if is_enemy:
+                    self._draw_conversion_overlay(screen, entity, px, py, tile_w, tile_h)
 
     def _draw_damage_overlay(self, screen: pygame.Surface, entity, x: int, y: int, width: int, height: int):
         """Draw a red overlay on a unit based on damage taken.
@@ -1935,6 +1936,33 @@ class EncounterScreen(Screen):
         # Create semi-transparent red overlay
         overlay = pygame.Surface((width, overlay_height), pygame.SRCALPHA)
         overlay.fill((255, 0, 0, 100))  # Red with ~40% opacity
+
+        # Position at bottom of the unit
+        overlay_y = y + (height - overlay_height)
+        screen.blit(overlay, (x, overlay_y))
+
+    def _draw_conversion_overlay(self, screen: pygame.Surface, entity, x: int, y: int, width: int, height: int):
+        """Draw a blue overlay on an enemy unit based on conversion progress.
+
+        The overlay fills from bottom to top based on conversion_progress / max_health.
+        """
+        max_health = getattr(entity, "max_health", 0)
+        conversion_progress = getattr(entity, "conversion_progress", 0)
+
+        if max_health <= 0 or conversion_progress <= 0:
+            return
+
+        # Calculate conversion percentage
+        conversion_percent = min(1.0, conversion_progress / max_health)
+
+        # Calculate overlay height (fills from bottom)
+        overlay_height = int(height * conversion_percent)
+        if overlay_height <= 0:
+            return
+
+        # Create semi-transparent blue overlay
+        overlay = pygame.Surface((width, overlay_height), pygame.SRCALPHA)
+        overlay.fill((0, 100, 255, 100))  # Blue with ~40% opacity
 
         # Position at bottom of the unit
         overlay_y = y + (height - overlay_height)
